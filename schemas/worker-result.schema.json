@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localai/schemas/worker-result.schema.json",
+  "title": "WorkerResult",
+  "description": "stdout JSON a one-shot worker emits; Brain validates then commits. Spec 04 O8.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "job_id", "status", "provenance"],
+  "properties": {
+    "version": { "const": 1 },
+    "job_id": { "type": "integer", "$comment": "jobs.id — spec 04" },
+    "status": { "enum": ["done", "failed", "partial"], "$comment": "spec 04 O13" },
+    "result": { "type": ["object", "null"], "$comment": "kind-specific payload; null on failure" },
+    "error": {
+      "type": ["object", "null"],
+      "$comment": "present when status=failed; feeds spec 09 classifier",
+      "properties": {
+        "class": { "enum": ["transient", "input", "bug", "resource"], "$comment": "spec 09 §2" },
+        "message": { "type": "string" },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "provenance": {
+      "enum": ["System", "UserDirect", "VerifiedKb", "UnverifiedKb", "Untrusted"],
+      "$comment": "spec 07 §3; scraper/agent output MUST be Untrusted"
+    },
+    "cost_tokens": { "type": "integer", "minimum": 0 },
+    "cost_usd": { "type": "number", "minimum": 0 },
+    "artifacts_dir": { "type": ["string", "null"], "$comment": "artifacts/<job-id>/ — spec 08 A12" }
+  }
+}

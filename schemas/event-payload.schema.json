@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localai/schemas/event-payload.schema.json",
+  "title": "EventPayload",
+  "description": "Base envelope for events.payload; each kind adds a payload shape via $defs. Spec 02 §3, versioned per kind.",
+  "type": "object",
+  "required": ["v", "kind"],
+  "properties": {
+    "v": { "type": "integer", "minimum": 1, "$comment": "payload schema version for THIS kind" },
+    "kind": {
+      "enum": [
+        "route", "tool_call", "job", "mem_pressure", "mem_breach", "decision",
+        "fact_check", "repair", "model_swap", "session_start", "session_end",
+        "secret_flag", "egress", "egress_denied", "injection_suspected",
+        "invariant_violation", "self_mod_blocked", "reward"
+      ],
+      "$comment": "core::EventKind — spec 02, 05, 06, 09, 11, 16"
+    }
+  },
+  "$comment": "Per-kind payloads defined in $defs and selected by kind. Security-event kinds (secret_flag, egress_denied, injection_suspected, invariant_violation, self_mod_blocked) are first-class — spec 11 S14.",
+  "$defs": {
+    "route": {
+      "type": "object",
+      "required": ["chosen", "trace_id"],
+      "properties": {
+        "chosen": { "enum": ["LOCAL", "LOCAL_SELFCHECK", "SEARCH", "COUNCIL_DECIDE", "COUNCIL_FACT", "AGENT"], "$comment": "spec 06 §1" },
+        "features": { "type": "object", "$comment": "confidence signals — spec 06 §2" },
+        "prior": { "type": "string" },
+        "explored": { "type": "boolean", "$comment": "bandit exploration flag — spec 06 R2" },
+        "trace_id": { "type": "string", "$comment": "explain view anchor — spec 12 U3, G-18" }
+      }
+    },
+    "egress": {
+      "type": "object",
+      "required": ["host", "tool"],
+      "properties": {
+        "host": { "type": "string", "$comment": "MUST be allowlisted — CON-7" },
+        "tool": { "type": "string" },
+        "bytes": { "type": "integer" },
+        "redactions": { "type": "integer", "$comment": "SecretFilter hits — spec 11 S5" }
+      }
+    }
+  }
+}

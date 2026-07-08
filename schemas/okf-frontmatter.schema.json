@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localai/schemas/okf-frontmatter.schema.json",
+  "title": "OkfFrontmatter",
+  "description": "YAML frontmatter of a kb/**/*.md OKF file. Ground truth of semantic memory. Spec 02 §4.1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "domain", "status", "created", "updated"],
+  "properties": {
+    "id": { "type": "string", "$comment": "blake3 hash of canonical content — spec 02 M1/G-10 idempotency" },
+    "title": { "type": "string" },
+    "domain": { "type": "string", "$comment": "slash taxonomy e.g. cs/caching" },
+    "status": {
+      "enum": ["draft", "verified", "disputed", "superseded"],
+      "$comment": "lifecycle — spec 02 M7; draft=UnverifiedKb (spec 07)"
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0, "maximum": 1,
+      "$comment": "council fact-check aggregate — 'agreed+sourced' NOT 'true' (REVIEW RV-12)"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "retrieved"],
+        "properties": {
+          "url": { "type": "string" },
+          "retrieved": { "type": "string", "format": "date" }
+        }
+      },
+      "$comment": "empirical 'verified' REQUIRES ≥1 resolvable source — spec 05 C7/C10, G-04"
+    },
+    "supersedes": { "type": "array", "items": { "type": "string" }, "$comment": "ids — spec 02 M7/L4" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "created": { "type": "string", "format": "date-time" },
+    "updated": { "type": "string", "format": "date-time" }
+  }
+}

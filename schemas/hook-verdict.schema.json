@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localai/schemas/hook-verdict.schema.json",
+  "title": "HookVerdict",
+  "description": "stdout an external hook script returns; also the shape of the Rust HookVerdict. Spec 07 §4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "decision"],
+  "properties": {
+    "version": { "const": 1 },
+    "decision": {
+      "enum": ["Allow", "Deny", "Modify"],
+      "$comment": "first Deny short-circuits dispatch — spec 07 H8"
+    },
+    "reason": { "type": "string", "$comment": "required when decision=Deny; logged" },
+    "mutate": {
+      "type": ["object", "null"],
+      "$comment": "replacement args when decision=Modify (e.g. redacted) — spec 07 H8/H9"
+    },
+    "note": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "decision": { "const": "Deny" } } },
+      "then": { "required": ["reason"] }
+    },
+    {
+      "if": { "properties": { "decision": { "const": "Modify" } } },
+      "then": { "required": ["mutate"] }
+    }
+  ]
+}

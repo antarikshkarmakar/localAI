@@ -1,0 +1,10 @@
+[package]
+name = "localai-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+localai-core = { path = "../core" }
+tokio.workspace = true

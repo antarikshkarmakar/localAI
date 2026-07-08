@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localai/schemas/handoff.schema.json",
+  "title": "AgentHandoff",
+  "description": "HANDOFF.md YAML frontmatter an agent MUST produce. Spec 08 §5. Body 'Claims' section verified vs ground truth before trust (G-17).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "job_id", "status"],
+  "properties": {
+    "version": { "const": 1 },
+    "job_id": { "type": "integer" },
+    "status": { "enum": ["done", "partial", "blocked"] },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ran": { "type": "boolean" },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "diff_stat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": { "type": "integer", "minimum": 0 },
+        "add": { "type": "integer", "minimum": 0 },
+        "del": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cost_usd": { "type": "number", "minimum": 0 }
+  }
+}

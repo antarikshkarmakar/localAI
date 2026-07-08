@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localai/schemas/brief.schema.json",
+  "title": "AgentBrief",
+  "description": "BRIEF.md YAML frontmatter for a delegated CLI agent. Spec 08 §4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "job_id", "base_ref", "agent", "depth", "success_criteria"],
+  "properties": {
+    "version": { "const": 1 },
+    "job_id": { "type": "integer" },
+    "base_ref": { "type": "string", "$comment": "git sha the worktree branches from — spec 08 A4" },
+    "agent": { "enum": ["claude", "codex", "opencode"] },
+    "depth": { "type": "integer", "minimum": 0, "maximum": 2, "$comment": "spawn-depth cap — spec 04 O6, G-07" },
+    "budget_usd": { "type": "number", "minimum": 0, "$comment": "CON-11 cost cap" },
+    "risk_tags": {
+      "type": "array",
+      "items": { "enum": ["auth", "secrets", "egress", "ci", "migration", "external-facing"] },
+      "$comment": "non-empty → council security review before merge, spec 08 A15 / 11 S13"
+    },
+    "success_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "$comment": "machine-checkable where possible — spec 08 A7"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "$comment": "MUST include the immutable safety set — spec 11 S11 / 08 A9"
+    }
+  }
+}
