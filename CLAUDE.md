@@ -42,6 +42,7 @@ Specs are the source of truth. If a spec is unclear, ask — don't assume.
 | 05 | council (Claude/OpenAI/Gemini) | 13 | ingestion (scrape, OCR, audio) |
 | 06 | router (bandit, reward) | 14 | evals (frozen, canary gate) |
 | 07 | harness (tools, hooks, MCP, provenance) | 16 | reward-signal capture (learning critical path) |
+| | | 17 | Loop 4 training pipeline (contract; Phase 9+ impl) |
 
 ADRs: [001](docs/adr/ADR-001-no-docker-for-llm.md) no-Docker · [002](docs/adr/ADR-002-sqlite-vec.md) SQLite+vec · [003](docs/adr/ADR-003-model-selection.md) Gemma 4 12B+MTP · [004](docs/adr/ADR-004-llama-server-vs-ffi.md) llama-server · [005](docs/adr/ADR-005-bandit-algorithm.md) Thompson bandit.
 
