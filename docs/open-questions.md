@@ -13,6 +13,28 @@ Registry of decisions deferred to Phase N, research items, and architectural tra
 | **CubeSandbox eBPF** | CubeSandbox (Rust, RustVMM/KVM, Apache 2.0) | eBPF egress gate + vault patterns. Worth Phase 4+ but cgroup/ulimit suffice for now. | Phase 4+ |
 | **Gnap** | awesome-agent-orchestrators | Git repo as task-board. Contrast vs SQLite queue (spec 04). Stay with SQLite for crash recovery. | Phase 2 |
 
+## Loop 4 fine-tuning method (Phase 9+, cloud-trained E4B only — spec 10 §1)
+
+Context: no local weight training ever (32 GB CPU). Loop 4 = export trajectories → cloud-tune the **E4B fast model** → run locally via llama.cpp. 12B is never tuned. Every candidate below goes through the full self-mod gate (spec 11 S10: council review → canary vs frozen evals → auto-rollback).
+
+| Candidate | Fit | Notes | Decide-by |
+|---|---|---|---|
+| **KTO** (Kahneman-Tversky Opt.) | ★ best data-shape match | Works on **unpaired** binary feedback — exactly what spec 16 produces (RS0 corrections, RS2 reverts, RS3 re-edits are thumbs-up/down, NOT paired chosen/rejected for same prompt). DPO needs pairs we mostly won't have at single-user volume. | Phase 9 |
+| **DPO / SimPO / ORPO** | good IF pairs exist | Repair-ladder runs (spec 09 §3) DO create natural pairs: failed patch vs succeeded patch on same error. Use for that slice; SimPO = reference-free (cheaper), ORPO = SFT+align in one stage. | Phase 9 |
+| **Rejection-sampling SFT (STaR/ReST-style)** | ★ free verified data | Generate k samples → keep only ones passing the *objective* verifier (compiled AND tests pass, spec 06 R8) → SFT on winners. Our reward infra already labels these; training data accumulates as a side effect of normal operation. Anti-gaming inherits from R8 (verifier is not the model). | Phase 9 |
+| **Council-as-teacher distillation** | ★ attacks OBJ-2 directly | Every council escalation = (query, council-verified answer) pair — a distillation dataset we're already paying for. Periodically QLoRA E4B on it → local model absorbs what it used to escalate for → escalation rate (KPI-01) drops → cost drops. Flywheel: cloud teaches local. Pairs stored via spec 16 capture; SecretFilter (CON-13) scrubs before export. | Phase 9 |
+| **Plain SFT-QLoRA** | baseline | On high-reward trajectories. Simplest; run first as the control arm vs KTO/RFT. | Phase 9 |
+
+**Recommended composite (pre-decision, revisit Phase 9):** council-distillation + rejection-sampling SFT as the data recipe, KTO as the objective, QLoRA 4-bit as the method, E4B as the only target. Cheap cloud run (~$5–20/epoch at 4B scale), canary-gated like any self-mod.
+
+## Serving-side "tuning" (no training — earlier phases, cheap wins)
+
+| Technique | Why good for us | Decide-by |
+|---|---|---|
+| **Dynamic few-shot from episodic memory** (many-shot ICL) | "Fine-tuning without fine-tuning": retrieve past *successful* solutions (reward-positive episodes, spec 02) as in-prompt examples for similar new tasks. Zero training, works day 1 after memory fills, compounds with KB. Candidate for spec 02 M11 retrieval + spec 10 addition. | Phase 4 |
+| **LoRA adapter hot-swap at inference** | llama.cpp serves base + per-task-class LoRA adapters (`--lora`), swappable without reload. Router (spec 06) picks adapter like it picks route. Turns one E4B into N specialists at ~100 MB/adapter. Only relevant once Loop 4 produces adapters. | Phase 9 |
+| **Best-of-N + verifier rerank** | Spend tokens not weights: k samples → objective verifier (tests/council/auditor) picks. Already partially in LOCAL_SELFCHECK (spec 06); extend with verifier-rerank instead of majority-vote where a checkable oracle exists. | Phase 5 |
+
 ## Architecture trade-offs (still open)
 
 | Decision | Options | Status | Decide-by |
@@ -27,7 +49,7 @@ Registry of decisions deferred to Phase N, research items, and architectural tra
 
 | Feature | Why later |
 |---|---|
-| Local fine-tuning (LoRA) | Phase 9+ (cloud QLoRA on trajectories). CPU too slow. |
+| Local fine-tuning (LoRA) | Phase 9+ (cloud QLoRA on trajectories). CPU too slow. See "Loop 4 fine-tuning method" above. |
 | Multi-modal output | Gemma 4 input-only. Needs separate model. |
 | Distributed agents | Single-workstation focus (OBJ-1). |
 | Cloud sync | Manual export only; write-once local design. |
