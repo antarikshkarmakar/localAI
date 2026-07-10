@@ -180,10 +180,16 @@ pub fn run_worker<F>(payload: WorkerPayload, handler: F) -> WorkerResult
 where
     F: FnOnce(WorkerPayload) -> Result<JsonValue, WorkerExecError>,
 {
-    // Determine default provenance based on kind (spec 04 O9).
+    // Default provenance by kind (spec 04 O9) — FAIL-SAFE: trust is granted
+    // by explicit listing, never by fallthrough. Unknown kinds are Untrusted.
     let default_provenance = match payload.kind.as_str() {
-        "scrape" | "agent" => Provenance::Untrusted,
-        _ => Provenance::System,
+        // external content / external executor output (spec 07 H3)
+        "scrape" | "agent" | "ingest" => Provenance::Untrusted,
+        // distiller output is draft knowledge, never verified by itself (spec 10 L1)
+        "distill" => Provenance::UnverifiedKb,
+        // internal operations on our own already-tagged data
+        "maintenance" | "reembed" => Provenance::System,
+        _ => Provenance::Untrusted,
     };
 
     match handler(payload.clone()) {
@@ -302,8 +308,9 @@ mod tests {
         assert_eq!(result.provenance, "Untrusted");
     }
 
+    // Spec 10 L1: distiller output is draft knowledge — UnverifiedKb, never System.
     #[test]
-    fn test_provenance_default_distill_is_system() {
+    fn test_provenance_default_distill_is_unverified_kb() {
         let payload = WorkerPayload {
             job_id: 3,
             kind: "distill".to_string(),
@@ -311,6 +318,32 @@ mod tests {
         };
 
         let result = run_worker(payload, |_| Ok(json!({"condensed": "test"})));
+        assert_eq!(result.provenance, "UnverifiedKb");
+    }
+
+    // Fail-safe (spec 07 H3 spirit): an UNKNOWN kind must never default to trust.
+    #[test]
+    fn test_provenance_unknown_kind_is_untrusted() {
+        let payload = WorkerPayload {
+            job_id: 4,
+            kind: "some_future_kind".to_string(),
+            args: json!({}),
+        };
+
+        let result = run_worker(payload, |_| Ok(json!({})));
+        assert_eq!(result.provenance, "Untrusted");
+    }
+
+    // Internal maintenance stays System (operates on already-tagged own data).
+    #[test]
+    fn test_provenance_maintenance_is_system() {
+        let payload = WorkerPayload {
+            job_id: 5,
+            kind: "maintenance".to_string(),
+            args: json!({}),
+        };
+
+        let result = run_worker(payload, |_| Ok(json!({})));
         assert_eq!(result.provenance, "System");
     }
 

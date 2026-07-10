@@ -88,7 +88,8 @@ fn main() {
                 "failed to read stdin",
                 Some(localai_core::ErrorClass::Input),
             ),
-            localai_core::Provenance::System,
+            // Fail-safe: kind is unknown here — never default to trust.
+            localai_core::Provenance::Untrusted,
         );
         if let Ok(json) = serde_json::to_string(&result) {
             println!("{}", json);
@@ -107,7 +108,9 @@ fn main() {
                     format!("parse error: {}", e),
                     Some(localai_core::ErrorClass::Input),
                 ),
-                localai_core::Provenance::System,
+                // Fail-safe: payload never parsed, kind unknown — Untrusted.
+                // The message also echoes external input fragments.
+                localai_core::Provenance::Untrusted,
             );
             if let Ok(json) = serde_json::to_string(&result) {
                 println!("{}", json);
