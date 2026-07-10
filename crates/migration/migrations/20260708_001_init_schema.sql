@@ -1,16 +1,16 @@
--- Core event ledger (spec 01/04)
+-- Core event ledger (spec 01 R9, spec 04 O14)
+-- Ordering: rowid `id` IS the sequence (G-09 — order by rowid, not wall-clock).
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY,
-    seq INTEGER NOT NULL UNIQUE,           -- monotonic ordering (spec 04 O14)
-    created_at TEXT NOT NULL,              -- RFC3339
+    created_at TEXT NOT NULL,              -- RFC3339, injected by caller (G-09)
     kind TEXT NOT NULL,                    -- 'OnRoute', 'OnTask', 'OnError', 'OnLearning', etc.
     task_id INTEGER,                       -- nullable, links to jobs
     agent TEXT,                            -- nullable, which agent/worker
     body TEXT NOT NULL,                    -- JSON payload
     trace_id TEXT                          -- for distributed tracing
 );
-CREATE INDEX idx_events_seq ON events(seq);
 CREATE INDEX idx_events_task ON events(task_id);
+CREATE INDEX idx_events_kind ON events(kind);
 
 -- Routing decisions (spec 06)
 CREATE TABLE IF NOT EXISTS routing_decisions (
