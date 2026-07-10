@@ -34,7 +34,7 @@ Code job fails → climb only as far as needed, each rung logged, cost-capped (C
 
 ```
 1. Local repair:  feed captured error → local 12B → patch → re-run tests   (≤ N iters, N=3 default)
-1.5. Local audit: if step 1 doesn't converge, spawned E4B (fast model) reviews the 12B's patch in a separate process (executor≠reviewer, no context bleed) → votes confidence (adopt/reject/refine). Cheaper than council, independent judgment. (ai-auto-work pattern)
+1.5. Local audit: if step 1 doesn't converge, spawned E4B (fast model) reviews the 12B's patch in a separate process (executor≠reviewer, no context bleed) → votes confidence (adopt/reject/refine). Cheaper than council, independent judgment. (ai-auto-work pattern) With multiple candidate patches (N iterations), the auditor RANKS them relatively instead of grading each absolutely — relative judgment is far more reliable from a small model (RULER pattern, OpenPipe ART).
 2. Council assist: error + attempts → COUNCIL_DECIDE (spec 05) for a fix strategy
 3. Agent delegate: escalate to a stronger CLI agent (spec 08) with full failure history in the brief
 4. Give up:       mark quarantined, write full trace + all attempts to ledger, surface to user
