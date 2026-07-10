@@ -287,7 +287,13 @@ mod tests {
 
         // Brain "crashed"; sweep past lease expiry.
         let stats = q.sweep_expired("2026-07-08T10:15:00Z").await.unwrap();
-        assert_eq!(stats, SweepStats { requeued: 1, quarantined: 0 });
+        assert_eq!(
+            stats,
+            SweepStats {
+                requeued: 1,
+                quarantined: 0
+            }
+        );
 
         // Claimable again, attempts accumulate.
         let reclaimed = q

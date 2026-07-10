@@ -21,12 +21,14 @@ pub const ENV_PREFIX: &str = "LOCALAI_";
 /// Kept intentionally broad — a false positive costs a rename; a false
 /// negative costs a leaked credential.
 const SECRET_PATTERNS: &[&str] = &[
-    "sk-",            // OpenAI / Anthropic style
-    "AIza",           // Google API key
-    "ghp_", "gho_",   // GitHub tokens
-    "xoxb-", "xoxp-", // Slack tokens
-    "AKIA",           // AWS access key id
-    "-----BEGIN",     // PEM private key blocks
+    "sk-",  // OpenAI / Anthropic style
+    "AIza", // Google API key
+    "ghp_",
+    "gho_", // GitHub tokens
+    "xoxb-",
+    "xoxp-",      // Slack tokens
+    "AKIA",       // AWS access key id
+    "-----BEGIN", // PEM private key blocks
 ];
 
 #[derive(Debug, Error)]
@@ -37,11 +39,13 @@ pub enum ConfigError {
     #[error("config value at '{key}' looks like a secret ({pattern}…) — secrets are environment-only (CON-9), never in config.toml")]
     SecretLikeValue { key: String, pattern: String },
 
-    #[error("invalid env override '{0}' — unknown field or wrong value type (check docs/config.md)")]
+    #[error(
+        "invalid env override '{0}' — unknown field or wrong value type (check docs/config.md)"
+    )]
     UnknownOverride(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, default)]
 pub struct Config {
     pub mem: MemCfg,
@@ -49,18 +53,6 @@ pub struct Config {
     pub inference: InferenceCfg,
     pub queue: QueueCfg,
     pub ledger: LedgerCfg,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            mem: MemCfg::default(),
-            paths: PathsCfg::default(),
-            inference: InferenceCfg::default(),
-            queue: QueueCfg::default(),
-            ledger: LedgerCfg::default(),
-        }
-    }
 }
 
 /// MemoryGuard watermarks (spec 01 §4, CON-1).
@@ -74,7 +66,11 @@ pub struct MemCfg {
 
 impl Default for MemCfg {
     fn default() -> Self {
-        Self { soft_gb: 19.0, hard_gb: 21.0, ceiling_gb: 22.0 }
+        Self {
+            soft_gb: 19.0,
+            hard_gb: 21.0,
+            ceiling_gb: 22.0,
+        }
     }
 }
 
@@ -111,7 +107,11 @@ pub struct InferenceCfg {
 
 impl Default for InferenceCfg {
     fn default() -> Self {
-        Self { port: 8080, ctx: 32_768, health_timeout_s: 120 }
+        Self {
+            port: 8080,
+            ctx: 32_768,
+            health_timeout_s: 120,
+        }
     }
 }
 
@@ -126,7 +126,11 @@ pub struct QueueCfg {
 
 impl Default for QueueCfg {
     fn default() -> Self {
-        Self { permits: 3, lease_secs: 600, max_attempts: 3 }
+        Self {
+            permits: 3,
+            lease_secs: 600,
+            max_attempts: 3,
+        }
     }
 }
 
@@ -142,7 +146,12 @@ pub struct LedgerCfg {
 
 impl Default for LedgerCfg {
     fn default() -> Self {
-        Self { channel_capacity: 1024, batch_max: 50, flush_interval_ms: 100, send_timeout_ms: 50 }
+        Self {
+            channel_capacity: 1024,
+            batch_max: 50,
+            flush_interval_ms: 100,
+            send_timeout_ms: 50,
+        }
     }
 }
 
@@ -169,10 +178,11 @@ impl Config {
         // each so a bad override is attributed to its exact env var (a
         // deserialize error after an insert can only be that insert's fault).
         for (key, val) in env {
-            let Some(rest) = key.strip_prefix(ENV_PREFIX) else { continue };
-            let (section, field) = match_section(rest).ok_or_else(|| {
-                ConfigError::UnknownOverride(key.clone())
-            })?;
+            let Some(rest) = key.strip_prefix(ENV_PREFIX) else {
+                continue;
+            };
+            let (section, field) =
+                match_section(rest).ok_or_else(|| ConfigError::UnknownOverride(key.clone()))?;
             let entry = root
                 .entry(section)
                 .or_insert_with(|| toml::Value::Table(Default::default()));
@@ -247,7 +257,11 @@ fn scan_for_secrets(value: &toml::Value, path: &str) -> Result<(), ConfigError> 
         }
         toml::Value::Table(t) => {
             for (k, v) in t {
-                let child = if path.is_empty() { k.clone() } else { format!("{path}.{k}") };
+                let child = if path.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{path}.{k}")
+                };
                 scan_for_secrets(v, &child)?;
             }
             Ok(())
@@ -276,7 +290,7 @@ mod tests {
         let cfg = Config::load("", no_env()).unwrap();
         assert_eq!(cfg, Config::default());
         assert_eq!(cfg.mem.ceiling_gb, 22.0); // CON-1
-        assert_eq!(cfg.queue.permits, 3);     // CON-5
+        assert_eq!(cfg.queue.permits, 3); // CON-5
         assert_eq!(cfg.ledger.batch_max, 50); // R9
     }
 

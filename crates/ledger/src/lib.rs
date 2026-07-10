@@ -64,8 +64,8 @@ pub struct LedgerConfig {
 impl Default for LedgerConfig {
     fn default() -> Self {
         Self {
-            channel_capacity: 1024,           // R9
-            batch_max: 50,                    // R9
+            channel_capacity: 1024,                     // R9
+            batch_max: 50,                              // R9
             flush_interval: Duration::from_millis(100), // R9
             send_timeout: Duration::from_millis(50),    // O14
         }
@@ -147,7 +147,7 @@ impl Ledger {
 
         let mut tx = pool.begin().await?;
         for ev in &events {
-            insert_event(&mut *tx, ev).await?;
+            insert_event(&mut tx, ev).await?;
         }
         tx.commit().await?;
 
@@ -257,7 +257,7 @@ async fn writer_loop(
 async fn flush(pool: &SqlitePool, batch: &[EventRecord]) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
     for ev in batch {
-        insert_event(&mut *tx, ev).await?;
+        insert_event(&mut tx, ev).await?;
     }
     tx.commit().await
 }
@@ -295,8 +295,11 @@ mod tests {
     async fn append_lands_in_events_table() {
         let pool = pool().await;
         let dir = tempfile::tempdir().unwrap();
-        let (ledger, writer) =
-            Ledger::spawn(pool.clone(), dir.path().join("spill.jsonl"), LedgerConfig::default());
+        let (ledger, writer) = Ledger::spawn(
+            pool.clone(),
+            dir.path().join("spill.jsonl"),
+            LedgerConfig::default(),
+        );
 
         let outcome = ledger.append(ev("OnRoute")).await.unwrap();
         assert_eq!(outcome, AppendOutcome::Queued);
@@ -321,8 +324,11 @@ mod tests {
     async fn large_volume_fully_flushed() {
         let pool = pool().await;
         let dir = tempfile::tempdir().unwrap();
-        let (ledger, writer) =
-            Ledger::spawn(pool.clone(), dir.path().join("spill.jsonl"), LedgerConfig::default());
+        let (ledger, writer) = Ledger::spawn(
+            pool.clone(),
+            dir.path().join("spill.jsonl"),
+            LedgerConfig::default(),
+        );
 
         for i in 0..120 {
             let outcome = ledger.append(ev(&format!("E{i}"))).await.unwrap();
@@ -339,8 +345,11 @@ mod tests {
     async fn rowid_preserves_append_order() {
         let pool = pool().await;
         let dir = tempfile::tempdir().unwrap();
-        let (ledger, writer) =
-            Ledger::spawn(pool.clone(), dir.path().join("spill.jsonl"), LedgerConfig::default());
+        let (ledger, writer) = Ledger::spawn(
+            pool.clone(),
+            dir.path().join("spill.jsonl"),
+            LedgerConfig::default(),
+        );
 
         for i in 0..10 {
             ledger.append(ev(&format!("E{i}"))).await.unwrap();
@@ -380,7 +389,10 @@ mod tests {
         let start = std::time::Instant::now();
         let outcome = ledger.append(ev("C")).await.unwrap();
         assert_eq!(outcome, AppendOutcome::Spilled);
-        assert!(start.elapsed() < Duration::from_millis(500), "spill must not stall");
+        assert!(
+            start.elapsed() < Duration::from_millis(500),
+            "spill must not stall"
+        );
 
         let spilled = std::fs::read_to_string(&spill_path).unwrap();
         assert_eq!(spilled.lines().count(), 1);
@@ -393,7 +405,10 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&spill_path).unwrap(), "");
 
         // Idempotent on empty file.
-        assert_eq!(Ledger::reconcile_spill(&pool, &spill_path).await.unwrap(), 0);
+        assert_eq!(
+            Ledger::reconcile_spill(&pool, &spill_path).await.unwrap(),
+            0
+        );
     }
 
     // Reconcile on a missing file is a clean no-op (fresh install).

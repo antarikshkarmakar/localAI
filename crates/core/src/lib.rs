@@ -58,7 +58,10 @@ pub enum Provenance {
 
 impl Provenance {
     pub fn is_trusted(&self) -> bool {
-        matches!(self, Provenance::System | Provenance::UserDirect | Provenance::VerifiedKb)
+        matches!(
+            self,
+            Provenance::System | Provenance::UserDirect | Provenance::VerifiedKb
+        )
     }
 }
 
