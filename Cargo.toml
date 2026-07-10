@@ -21,7 +21,14 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 authors = ["Antariksh Karmakar"]
-license = "MIT OR Apache-2.0"
+license = "MIT"
+
+# docs/standards.md: no unwrap/expect/panic outside tests (tests exempted
+# via clippy.toml allow-*-in-tests). CI runs clippy with -D warnings.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
 
 [workspace.dependencies]
 tokio = { version = "1.40", features = ["full"] }

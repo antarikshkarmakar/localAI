@@ -1,0 +1,22 @@
+# Build
+target/
+
+# Models — never commit weights (docs/ci.md)
+models/
+*.gguf
+
+# Data — SQLite + ledger spill live outside git (CON-4: Linux fs at runtime)
+data/
+*.db
+*.db-wal
+*.db-shm
+ledger.spill.jsonl
+
+# Worker/agent scratch
+artifacts/
+
+# Secrets (CON-9: env only, never committed)
+.env
+
+# KB staging (two-phase writes, spec 02 G-10)
+kb/.staging/

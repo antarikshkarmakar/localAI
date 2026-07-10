@@ -1,0 +1,6 @@
+# Lint config (docs/ci.md, docs/standards.md).
+# unwrap/expect/panic are denied workspace-wide via [workspace.lints] in
+# Cargo.toml; tests are exempt here:
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

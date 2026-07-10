@@ -1,0 +1,7 @@
+# Reproducibility pin (docs/ci.md, G-20).
+# TODO(phase-1): pin the exact version (e.g. "1.XX.0") once the WSL2
+# toolchain is installed and `cargo --version` is known-good. "stable"
+# is a placeholder, not the end state.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

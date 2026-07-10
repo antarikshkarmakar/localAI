@@ -16,3 +16,6 @@ tracing.workspace = true
 
 [dev-dependencies]
 localai-migration = { path = "../migration" }
+
+[lints]
+workspace = true

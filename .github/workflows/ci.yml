@@ -1,0 +1,102 @@
+# CI gates (docs/ci.md). Steps 6 (invariant evals) and 7 (schema check)
+# activate in later phases when the eval suites / schema structs exist —
+# placeholders marked below so the pipeline shape is honest from day 1.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  clippy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  deny:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  # docs/ci.md step 4: portable AND native builds. CI hardware ≠ deploy
+  # hardware, so "native" here only proves the flag path compiles.
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - name: portable
+            rustflags: ""
+          - name: native
+            rustflags: "-C target-cpu=native"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+      # TODO(phase-3+): safety_invariants + reward_integrity eval suites
+      # run here and are CI-BLOCKING (docs/ci.md step 6, spec 11 T9,
+      # spec 14 E11), including the meta-test that deleting an invariant
+      # test fails the build.
+      # TODO(phase-2+): schema check — structs serialize to schemas/*.json
+      # cleanly; version bump required when a contract changes (step 7).
+
+  # docs/ci.md step 8: secret scan over the diff (defense vs committing a
+  # key, spec 01 §6 / spec 11 S4). Same pattern set as core::config.
+  secret-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: scan diff for key-like values
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          # First push / new branch: scan the whole tree instead of a diff.
+          if ! git cat-file -e "$BASE" 2>/dev/null; then
+            RANGE="HEAD"
+            SCAN="git grep -nE"
+          else
+            RANGE="$BASE..HEAD"
+            SCAN="git diff $RANGE --unified=0 | grep -nE"
+          fi
+          PATTERNS='sk-[A-Za-z0-9]{16,}|AIza[A-Za-z0-9_-]{30,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|xox[bp]-[A-Za-z0-9-]{10,}|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY'
+          if [ "$RANGE" = "HEAD" ]; then
+            HITS=$(git grep -nE "$PATTERNS" -- ':!*.md' || true)
+          else
+            HITS=$(git diff "$RANGE" --unified=0 -- ':!*.md' | grep -E "^\+" | grep -nE "$PATTERNS" || true)
+          fi
+          if [ -n "$HITS" ]; then
+            echo "::error::Key-like value detected in diff — secrets are env-only (CON-9):"
+            echo "$HITS"
+            exit 1
+          fi

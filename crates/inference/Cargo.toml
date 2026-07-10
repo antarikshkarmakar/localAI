@@ -7,3 +7,6 @@ license.workspace = true
 
 [dependencies]
 localai-core = { path = "../core" }
+
+[lints]
+workspace = true
