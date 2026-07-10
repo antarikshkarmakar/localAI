@@ -136,6 +136,46 @@ CREATE VIRTUAL TABLE vec_chunks USING vec0(
 - **M10b — Incremental indexing (adopted from antarikshSkills `/ak-grok`, B2):** re-embed only files changed since the last indexed git commit, not a full rescan. `kb/` is git-tracked (REVIEW RV-07); the index records the last-scanned commit hash (per project card + a global `meta` row); reconciliation (spec 09 H5) diffs against it. Cheap, and pairs with tree-sitter AST chunking (spec 13 D9). Confirms graphify is already in the toolchain.
 - **M11 — Retrieval:** hybrid — vector top-20 (int8 cosine) + FTS5 keyword top-20 → reciprocal-rank fusion → top-5 into context. Score exposed to router as confidence signal (spec `06`). FTS5 table over `rag_chunks.text` maintained by trigger.
 
+### 4.3 Knowledge-graph layer — bi-temporal entities & facts (Graphiti pattern)
+
+Documents/chunks are the *storage* granularity; **facts are the audit granularity.** The distiller (spec 10 L1) extracts structured triplets alongside prose; the fact audit (spec 05 mode 4) and superseding operate on individual facts, not whole documents.
+
+```sql
+CREATE TABLE kg_entities (
+    id TEXT PRIMARY KEY,              -- hash(canonical_name, type)
+    name TEXT NOT NULL,               -- canonical; aliases in kg_aliases
+    type TEXT NOT NULL,               -- prescribed ontology (M11b)
+    summary TEXT,                     -- evolves as facts accumulate
+    created_seq INTEGER NOT NULL, updated_seq INTEGER NOT NULL
+);
+CREATE TABLE kg_aliases (
+    alias TEXT NOT NULL, entity_id TEXT NOT NULL REFERENCES kg_entities(id),
+    PRIMARY KEY (alias, entity_id)
+);
+CREATE TABLE kg_facts (
+    id TEXT PRIMARY KEY,              -- hash(subject, predicate, object, valid_from_seq)
+    subject TEXT NOT NULL REFERENCES kg_entities(id),
+    predicate TEXT NOT NULL,          -- verb phrase, normalized
+    object_entity TEXT REFERENCES kg_entities(id),  -- XOR object_literal
+    object_literal TEXT,
+    valid_from_seq INTEGER NOT NULL,  -- event time: when it became true (bi-temporal axis 1)
+    invalid_from_seq INTEGER,         -- null = currently valid; set on invalidation, NEVER deleted
+    invalidated_by TEXT REFERENCES kg_facts(id),    -- the fact that superseded this one
+    created_seq INTEGER NOT NULL,     -- ingestion time (bi-temporal axis 2, G-09)
+    source_chunk_id INTEGER,          -- provenance → rag_chunks (episode ground truth)
+    provenance TEXT NOT NULL,         -- same enum as chunks (spec 07)
+    status TEXT NOT NULL              -- 'unverified'|'verified'|'disputed'
+);
+CREATE INDEX idx_kg_facts_subject ON kg_facts(subject, invalid_from_seq);
+CREATE INDEX idx_kg_facts_valid ON kg_facts(invalid_from_seq) WHERE invalid_from_seq IS NULL;
+```
+
+- **M11b — Prescribed ontology + gated learned types:** core entity types are fixed config (`person|org|project|concept|tool|library|model|place|event`). The distiller may *propose* a new type; it lands `unverified` and requires the same promotion as any learned artifact (spec 10 L11 posture) — learned ontology, gated. Prevents type sprawl while allowing growth.
+- **M11c — Bi-temporal, invalidate-don't-delete:** a new verified fact contradicting an old one sets the old fact's `invalid_from_seq` + `invalidated_by` — never deletes (OBJ-4). Two time axes: *event validity* (`valid_from/invalid_from`) vs *ingestion order* (`created_seq`) — "what is true now", "what was true at seq S", and "what did we believe at seq S" are all answerable. Retroactive reward (spec 06 R11) uses axis 2: find decisions that consumed a fact while we believed it.
+- **M11d — Fact-granular audit & supersede:** the monthly fact audit (spec 05 mode 4) samples `kg_facts` rows, not documents. A failed fact is invalidated individually; its source document stays (other facts in it may be fine) but the doc's `confidence` drops. Document-level supersede (M7) remains for full-doc replacement; fact-level is the precise path.
+- **M11e — Entity resolution:** distiller output entity mentions resolve via `kg_aliases` (exact + normalized match); unresolved mentions create `unverified` entities. Periodic maintenance job merges duplicate entities (same real-world referent) — merge = alias addition + fact re-pointing, ledger-logged, reversible.
+- **M11f — Retrieval integration:** graph traversal in M11 hybrid retrieval walks `kg_facts` (entity → currently-valid facts → source chunks) alongside `document_links`. Entity tags from chunk enrichment (spec 13 D11b) link chunks → `kg_entities`, closing the loop. Facts retrieved into context carry their status per M8 (`unverified` facts annotated).
+
 ## 5. Procedural Memory
 
 ```sql
