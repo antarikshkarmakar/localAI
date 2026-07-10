@@ -37,7 +37,7 @@ pub enum ConfigError {
     #[error("config value at '{key}' looks like a secret ({pattern}…) — secrets are environment-only (CON-9), never in config.toml")]
     SecretLikeValue { key: String, pattern: String },
 
-    #[error("unknown env override '{0}' — no matching config field (check docs/config.md)")]
+    #[error("invalid env override '{0}' — unknown field or wrong value type (check docs/config.md)")]
     UnknownOverride(String),
 }
 
@@ -154,38 +154,52 @@ impl Config {
         toml_str: &str,
         env: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Config, ConfigError> {
-        let mut value: toml::Value = toml_str.parse()?;
+        // Root of a TOML document is always a table — parse as one directly.
+        let mut root: toml::Table = toml_str.parse()?;
 
         // CON-9: reject key-like strings anywhere in the FILE (env is the
         // sanctioned secret channel; the file is not).
-        scan_for_secrets(&value, "")?;
+        scan_for_secrets(&toml::Value::Table(root.clone()), "")?;
 
-        // Apply LOCALAI_* env overrides onto the value tree, then
-        // deserialize once — deny_unknown_fields catches file typos.
+        // Validate the file alone first — file typos surface as Parse
+        // errors via deny_unknown_fields, attributed to the file.
+        let _: Config = toml::Value::Table(root.clone()).try_into()?;
+
+        // Apply LOCALAI_* env overrides one at a time, re-validating after
+        // each so a bad override is attributed to its exact env var (a
+        // deserialize error after an insert can only be that insert's fault).
         for (key, val) in env {
             let Some(rest) = key.strip_prefix(ENV_PREFIX) else { continue };
             let (section, field) = match_section(rest).ok_or_else(|| {
                 ConfigError::UnknownOverride(key.clone())
             })?;
-            let table = value
-                .as_table_mut()
-                .expect("root is a table")
+            let entry = root
                 .entry(section)
                 .or_insert_with(|| toml::Value::Table(Default::default()));
-            let Some(t) = table.as_table_mut() else {
+            let Some(t) = entry.as_table_mut() else {
                 return Err(ConfigError::UnknownOverride(key));
             };
             t.insert(field, parse_scalar(&val));
+
+            let check: Result<Config, _> = toml::Value::Table(root.clone()).try_into();
+            if check.is_err() {
+                return Err(ConfigError::UnknownOverride(key));
+            }
         }
 
-        let config: Config = value.try_into()?;
+        let config: Config = toml::Value::Table(root).try_into()?;
         Ok(config)
     }
 
     /// Deterministic hash of the effective config (spec 01 §6 — logged in
     /// SessionStart so learning always knows its config context).
     pub fn config_hash(&self) -> String {
-        let canonical = toml::to_string(self).expect("Config always serializes");
+        // Invariant: Config is a closed set of plain scalars/strings —
+        // serialization cannot fail. Allowed exception to the no-expect rule
+        // (docs/standards.md): a Result here would force every SessionStart
+        // caller to invent handling for an impossible error.
+        #[allow(clippy::expect_used)]
+        let canonical = toml::to_string(self).expect("Config is always serializable");
         let digest = Sha256::digest(canonical.as_bytes());
         format!("{digest:x}")
     }

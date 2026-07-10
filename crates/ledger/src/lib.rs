@@ -29,9 +29,6 @@ pub enum LedgerError {
 
     #[error("spill I/O error: {0}")]
     SpillIo(#[from] std::io::Error),
-
-    #[error("spill line {0} unparseable: {1}")]
-    SpillCorrupt(usize, serde_json::Error),
 }
 
 /// One ledger event (spec 02 episodic tier).
@@ -135,9 +132,14 @@ impl Ledger {
             if line.trim().is_empty() {
                 continue;
             }
-            let ev: EventRecord =
-                serde_json::from_str(line).map_err(|e| LedgerError::SpillCorrupt(i + 1, e))?;
-            events.push(ev);
+            match serde_json::from_str::<EventRecord>(line) {
+                Ok(ev) => events.push(ev),
+                // A torn line (crash mid-spill-write) must not block startup;
+                // one lost ledger line beats a Brain that won't boot.
+                Err(e) => {
+                    tracing::warn!(line = i + 1, error = %e, "skipping corrupt spill line");
+                }
+            }
         }
         if events.is_empty() {
             return Ok(0);
@@ -169,8 +171,12 @@ impl SpillFile {
     }
 
     fn write_line(&self, event: &EventRecord) -> Result<(), std::io::Error> {
-        let line = serde_json::to_string(event).expect("EventRecord always serializes");
-        let _guard = self.lock.lock().expect("spill mutex poisoned");
+        let line = serde_json::to_string(event)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        // A poisoned lock means another spiller panicked mid-write; the file
+        // is append-only JSONL, so recovering the lock is safe (worst case:
+        // one torn line, skipped by reconcile's per-line parse).
+        let _guard = self.lock.lock().unwrap_or_else(|p| p.into_inner());
         let mut f = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
