@@ -30,6 +30,7 @@ On a CPU box, concurrent generations don't speed up — they thrash cache and co
 
 - **I1** — All generation requests funnel through **one `InferenceQueue` in Brain**; exactly **one generation in flight at a time**. Others wait FIFO with priority (interactive UI > router self-check > background distill). This is a deliberate serialization, not a bug.
 - **I2** — Each request sends its **full context every call** (stateless w.r.t. server-side session); no reliance on persistent server slot state for correctness. Server KV reuse (prefix cache) is allowed only as a *transparent* speedup that cannot change output.
+- **I2b — Static-prefix KV persistence (attacks RV-03 latency, LMCache pattern via llama.cpp natives):** the stable prompt prefix (system prompt + safety/provenance preamble, identical across calls) is prefilled **once** and its KV state persisted via `--slot-save-path` + slot save/restore; `cache_reuse` covers the in-memory case. Context assembly (spec 02) MUST order the prompt so the static prefix is byte-identical first — any dynamic content (retrieval, history) comes after, or the prefix cache never hits. Correctness rule stays I2: cache is a speedup, never a correctness dependency; a cache miss = slow, not wrong. Prefix KV re-saved on model swap (I5) and invalidated on any system-prompt version change.
 - **I3** — Embeddings endpoint is exempt from the generation queue (cheap, parallel-safe) but still bounded by its own semaphore.
 
 ## 3. Model registry & hot-swap
@@ -80,3 +81,4 @@ pub struct ModelSpec {
 - [ ] T7: Embedding version mismatch → retrieval refuses cross-version compare, falls back to FTS + banner. (I12, G-03)
 - [ ] T8: Stuck generation hits timeout → cancelled, queue proceeds, others unblocked. (I14)
 - [ ] T9 (bench, not unit): sustained tok/s with MTP on ≥ MTP off, both logged; if HTTP overhead > threshold, ADR-004 FFI fallback triggered. (KPI-04)
+- [ ] T10 (bench): second call with identical static prefix → TTFT materially lower than cold call (prefix KV hit); output byte-identical to a cold call at temp 0. (I2b, RV-03)

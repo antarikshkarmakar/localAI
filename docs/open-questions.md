@@ -12,6 +12,9 @@ Registry of decisions deferred to Phase N, research items, and architectural tra
 | **Constitutional AI** | awesome-foundation-agents / 2022 | Self-critique loop + synthetic preference pairs. Replaces manual negative-reward engineering. | Phase 10+ |
 | **CubeSandbox eBPF** | CubeSandbox (Rust, RustVMM/KVM, Apache 2.0) | eBPF egress gate + vault patterns. Worth Phase 4+ but cgroup/ulimit suffice for now. | Phase 4+ |
 | **Gnap** | awesome-agent-orchestrators | Git repo as task-board. Contrast vs SQLite queue (spec 04). Stay with SQLite for crash recovery. | Phase 2 |
+| **LMCache / CacheBlend** | LMCache (Apache 2.0, vLLM-centric) | Library incompatible (GPU/vLLM; we're CPU llama.cpp). Pattern adopted instead: static-prefix KV persistence via llama.cpp natives (spec 03 I2b). CacheBlend (non-prefix KV reuse for RAG chunks) = revisit only if stack ever moves to vLLM/GPU. | Phase 10+ |
+| **Harness-evolution automation depth** | HF harness-optimization (Niklaus) | Adopted as spec 10 L10d (eval-driven fitness). Open: how autonomous the mutation loop gets — manual candidates (Phase 6) vs automated rewrite loop (Niklaus-style, needs strong Goodhart guards + eval budget). | Phase 7 |
+| **slime (THUDM)** | slime (Megatron+SGLang RL infra) | Infra incompatible (GPU cluster; overkill for 4B QLoRA). Pattern adopted: Data-Buffer → trajectory capture from Day 1 (spec 16 RS12–15, schemas/trajectory.schema.json). For Loop 4 cloud trainer: TRL/unsloth/axolotl class over slime. | Phase 9 |
 
 ## Loop 4 fine-tuning method (Phase 9+, cloud-trained E4B only — spec 10 §1)
 

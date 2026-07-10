@@ -51,6 +51,15 @@ Every signal lands as a `rewards` row (spec 06 R10 schema) linked to the origina
 - **RS10** — Proxy signals (`compiled`, `tests_pass`, `council_agreed`) can NEVER alone produce a strong positive reward. Strong positive requires a *durability* signal (survived hold window unreverted OR explicit human accept). Codified as an invariant tested by spec 14 E8.
 - **RS11** — Reward weights are versioned config (spec 06 R10); because raw signals are stored separately (§1), any weight change recomputes history — and a weight change that would start rewarding the E8 gameable-task suite fails CI (spec 14 E11).
 
+## 5b. Trajectory capture — Loop 4 feedstock (slime Data-Buffer pattern)
+
+Reward signals alone can't feed future fine-tuning (spec 10 Loop 4: cloud KTO/RFT/distillation on E4B) — those need full **trajectories**: `(context, response, reward, signals, route)` tuples. Can't retroactively capture what was never logged, so capture starts Day 1 even though training is Phase 9+.
+
+- **RS12 — Trajectory record:** every completed task with a booked reward ALSO emits a trajectory row: prompt context (post-assembly, pre-send), model/route output, computed reward + raw signal refs, route chain, model id + sampling params. Schema: [schemas/trajectory.schema.json](../schemas/trajectory.schema.json) (versioned like all wire contracts).
+- **RS13 — Storage & scrubbing:** trajectories append to a dedicated table (or JSONL archive), **SecretFilter-scrubbed at write** (CON-13 — they are export-destined by design). Untrusted-provenance context is stored with its taint tags intact so a poisoned trajectory can be excluded from any training export (G-01 must not launder into training data).
+- **RS14 — Export views, not raw dumps:** Loop 4 consumers read *filtered views*: distillation view (council-resolved tasks: query + council answer), RFT view (verifier-passed code tasks), KTO view (trajectory + binary durability outcome). Export itself is Phase 9+, gated like any egress (CON-7); only the capture is built early.
+- **RS15 — Retention:** trajectories follow artifact retention (G-19) but the *reward-labeled subset* is kept long-term — it's the training corpus. Compression fine, deletion not.
+
 ## 6. Acceptance Criteria / Test Anchors
 
 - [ ] T1: agent commit reverted within hold window → git hook reports `reverted`; computed reward for that route goes net-negative despite `compiled`+`tests_pass` positive. (RS2/RS5, G-02)
@@ -61,3 +70,5 @@ Every signal lands as a `rewards` row (spec 06 R10 schema) linked to the origina
 - [ ] T6: ambiguous/abandoned task → `unattributed`, excluded from bandit update (not scored as failure). (RS9)
 - [ ] T7: monthly audit failure → retroactive negative applied to a decision booked weeks earlier. (RS6, spec 05 C9)
 - [ ] T8: proxy-only signals cannot yield strong positive without a durability signal. (RS10, ties spec 14 E8)
+- [ ] T9: completed task with booked reward → trajectory row exists, schema-valid, SecretFilter-scrubbed (a planted fake key never lands in it). (RS12/RS13)
+- [ ] T10: trajectory whose context contained Untrusted chunks carries taint tags; the KTO/RFT/distillation export views exclude tainted rows by default. (RS13/RS14, G-01)
