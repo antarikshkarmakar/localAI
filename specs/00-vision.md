@@ -94,6 +94,7 @@ Baseline-first rule: no KPI is reported without a recorded baseline measurement;
 | KPI-07 | Router learning | cumulative route regret decreasing month-over-month | bandit reward curves (spec `06`) |
 | KPI-08 | RAG quality | ≥ 80% top-5 retrieval hit rate on fixed eval set | eval harness (spec `14`), eval set frozen in Phase 3 |
 | KPI-09 | Agent delegation yield | ≥ 70% of spawned agent runs produce a merged or explicitly useful artifact | `agent_runs` outcomes |
+| KPI-10 | Learning velocity | over a trailing 90-day window: eval-score slope ≥ 0, median time-to-heal decreasing, escalation rate decreasing, observation ACTIONED rate > 0 | derivative (slope) metrics over the KPI-01/03/06/08 series + `procedural_obs` outcomes (spec `10`) — measures whether the *self-improvement loop itself* works, not just current skill level |
 
 ## 7. Actors & Terminology
 

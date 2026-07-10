@@ -34,6 +34,7 @@ Before any self-mod activates:
 - **E4** — The proposed change runs against the **frozen `safety_invariants` + relevant KPI eval families** in replay mode.
 - **E5 — Hard reject** if ANY `safety_invariants` case regresses (no exceptions, overrides council approval — G-13).
 - **E6 — Soft gate** on KPI evals: regression beyond a per-KPI threshold → reject + report; improvement or within-noise → eligible to proceed to activation + post-activation watch (spec 10 L16).
+- **E6b — Seesaw gate (HarnessX, per-item not per-aggregate):** additionally, **no previously-passing eval item may flip to fail** — an aggregate-neutral change that trades passing items for new ones is catastrophic forgetting in symbolic space, invisible to E6's threshold. On a seesaw conflict split by `task_class` → route to variant fork (spec 10 L11c) instead of reject. Eval families used for L10d evolution fitness carry a **dev/held-out split**; the evolution loop sees only the dev slice, this gate runs on held-out (Goodhart guard).
 - **E7** — Canary result is a `decisions`-linked artifact (which cases passed/failed, deltas) — auditable, not a boolean.
 - **E7b — Canary review rubric = the 11 lenses (antarikshSkills A5, shared with spec 05 C6b).** Qualitative canary assessment scores the change against the 11 thinking lenses; a regression on the Security/Secrets or Verification lens is treated as a hard-reject signal alongside E5.
 

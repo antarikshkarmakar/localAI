@@ -142,15 +142,17 @@ CREATE VIRTUAL TABLE vec_chunks USING vec0(
 CREATE TABLE prompt_library (
     id INTEGER PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL,
     kind TEXT NOT NULL,               -- 'system' | 'tool_recipe' | 'agent_brief_tmpl' | 'distill_tmpl' | ...
+    task_class TEXT NOT NULL DEFAULT 'all',  -- variant scope (spec 10 L11c): 'all' | code|math|factual|judgment|humanities|ops
     body TEXT NOT NULL,
     status TEXT NOT NULL,             -- 'candidate' | 'active' | 'retired'
     parent_version INTEGER,           -- lineage for evolution (spec 10)
+    manifest TEXT,                    -- change manifest JSON (spec 10 L10e)
     uses INTEGER DEFAULT 0, wins INTEGER DEFAULT 0,  -- reward stats
-    UNIQUE(name, version)
+    UNIQUE(name, task_class, version)
 );
 ```
 
-- **M12** — Exactly one `active` version per `name` (partial unique index). Promotion `candidate → active` requires council security review (CON-8) — enforcement lives in spec `10`'s promotion flow, schema here only records it (`decisions` row id in payload).
+- **M12** — Exactly one `active` version per `(name, task_class)` (partial unique index). Promotion `candidate → active` requires council security review (CON-8) — enforcement lives in spec `10`'s promotion flow, schema here only records it (`decisions` row id in payload). Per-task-class variants exist only via the fork path (spec 10 L11c); `'all'` is the default until a seesaw conflict forks one. Dispatch: exact `(name, task_class)` match first, fall back to `(name, 'all')`.
 
 ## 6. Hot-Cache Eviction (draft's "elastic TTL", made concrete)
 

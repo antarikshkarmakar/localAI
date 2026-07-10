@@ -27,6 +27,7 @@ Every failure is classified before action (spec 04 O13):
 - **resource** — mem/disk/cost limit. → shed load, free space, degrade; not a retry.
 
 - **H1** — Classification uses exit code + stderr pattern + retry history. Ambiguous → treat as `transient` for ≤1 retry, then `bug` (avoid infinite transient loops, G-09-aware: count by attempts, not wall-clock).
+- **H1b — Failure Digest (AEGIS Digester pattern — the healing→learning bridge):** at quarantine or repair-ladder end (success or give-up), write a structured digest: `{failure_category, implicated_component (prompt|retrieval|tool|model|input|env), evidence_excerpt (≤500 chars from stderr/trace), repair_outcome, rungs_climbed, job/trace refs}`. The H1 class drives *retry policy*; the digest drives *learning* — it is the compressed evidence that feeds procedural observations (spec 10 L9) and the exploration ledger (spec 10 L10f). Without it, failures are handled but never mined; recurring `implicated_component` values across digests are exactly where the next prompt/tool improvement belongs.
 
 ## 3. L2 repair ladder (task-level, code — kept from draft FR-02, made safe)
 
@@ -41,6 +42,7 @@ Code job fails → climb only as far as needed, each rung logged, cost-capped (C
 ```
 
 - **H2 — Loop guard:** the ladder has a hard iteration + cost + depth cap (spec 04 O6, spec 05 C16). No heal→council→agent→heal infinite spiral. Depth>2 refused.
+- **H2b — Learned ladder entry point:** per-`(error_class, failure_category)` rung success rates accumulate from H1b digests. Once evidence passes a warm-up threshold, the ladder may **start at the historically-effective rung** (e.g., borrow-checker errors: rung 1 fixes 90% → start there; async-deadlock class: rung 1 never converges → start at rung 2) instead of always climbing from rung 1. Bounds: cost caps + depth caps (H2) always hold; entry-point learning can only skip *upward* past rungs with a demonstrated near-zero fix rate, never skip the give-up cap; cold classes default to rung 1. Stats are advisory routing, not gates — same posture as bandit priors (spec 06 R12/R13).
 - **H3 — Regression guard:** a repair that makes a *different* test fail is rejected (net-negative); repairs must be monotonic improvement or they don't land.
 - **H4 — Repairs are provenance-clean:** an error trace from an untrusted-context job doesn't grant privileged tools during repair (spec 07 H4 still holds).
 
