@@ -3,6 +3,7 @@
 //! Cites: spec 00 (OBJ-*, CON-*, KPI-*), spec 01 (architecture).
 
 pub mod config;
+pub mod mem_guard;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
