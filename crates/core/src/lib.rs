@@ -2,9 +2,10 @@
 //!
 //! Cites: spec 00 (OBJ-*, CON-*, KPI-*), spec 01 (architecture).
 
+pub mod config;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uuid::Uuid;
 
 /// Event kinds (spec 01, ledger events).
 #[derive(Debug, Clone, Serialize, Deserialize)]
