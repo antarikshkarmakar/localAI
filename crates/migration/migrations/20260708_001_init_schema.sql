@@ -39,24 +39,26 @@ CREATE TABLE IF NOT EXISTS rewards (
 );
 CREATE INDEX idx_rewards_decision ON rewards(decision_event);
 
--- Job queue (spec 04)
+-- Job queue (spec 04 §2, exact schema)
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY,
-    seq INTEGER NOT NULL UNIQUE,
-    kind TEXT NOT NULL,                    -- scrape|ingest|distill|repair|agent|maintenance
-    status TEXT NOT NULL,                  -- queued|running|done|partial|failed|quarantined
-    attempts INTEGER DEFAULT 0,
-    max_attempts INTEGER DEFAULT 3,
-    payload TEXT NOT NULL,                 -- JSON
-    result TEXT,                           -- JSON, set on completion
-    error_class TEXT,                      -- transient|input|bug|resource (spec 09)
-    created_at TEXT NOT NULL,
-    started_at TEXT,
-    finished_at TEXT,
-    lease_until TEXT                       -- for crash detection (spec 04 O3)
+    kind TEXT NOT NULL,                    -- 'scrape'|'ingest'|'distill'|'agent'|'reembed'|'maintenance'
+    priority INTEGER NOT NULL DEFAULT 5,   -- lower = sooner (spec 04 O5)
+    payload TEXT NOT NULL,                 -- JSON args
+    status TEXT NOT NULL,                  -- 'queued'|'running'|'done'|'partial'|'failed'|'quarantined'
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    depth INTEGER NOT NULL DEFAULT 0,      -- spawn chain depth (G-07, O6)
+    lease_expires TEXT,                    -- running-job lease, crash detection (O3)
+    dedup_key TEXT,                        -- idempotency (G-10, O2)
+    created TEXT NOT NULL,
+    started TEXT,
+    finished TEXT,
+    result TEXT,
+    error TEXT
 );
-CREATE INDEX idx_jobs_status ON jobs(status);
-CREATE INDEX idx_jobs_kind ON jobs(kind);
+CREATE UNIQUE INDEX idx_jobs_dedup ON jobs(dedup_key) WHERE dedup_key IS NOT NULL;
+CREATE INDEX idx_jobs_ready ON jobs(status, priority, created);
 
 -- Agent runs (spec 08 A12)
 CREATE TABLE IF NOT EXISTS agent_runs (
