@@ -29,7 +29,9 @@ pub trait CliAgent {
 
 - **A4** — Each agent job gets `git worktree add artifacts/<job-id>/ws <base-ref>` — isolated working copy on a throwaway branch. Parallel agents never collide (up to semaphore=3, spec 04).
 - **A5 — Scrubbed environment (spec 11 S6):** worktree process env carries NO host API keys; the agent's own auth (its config/keychain) is its concern; Brain passes only scoped, short-lived tokens if a tool needs them.
+- **A5b — Declared path grants (shepherd "signature is the permission surface"):** the BRIEF frontmatter declares the run's filesystem access — `grants: {read: [paths], write: [paths]}` (default: write = its worktree only; read = worktree + explicitly listed refs). The supervisor provisions the sandbox FROM the declaration; an undeclared path is unreachable, not merely unaudited. Grants are reviewable data in the brief — the council security review (A15) sees exactly what the agent could touch.
 - **A6 — Resource cap (spec 04 O7, G-07):** worktree process runs under cgroup/ulimit (mem + process count) so a runaway agent can't fork-bomb or exhaust RAM. Spawn depth inherited (≤2).
+- **A6b — Filesystem sandbox, kernel-enforced (shepherd pattern):** layered under A6 — cgroup caps *resources*; **Landlock** caps *access*: the agent process is confined to its A5b grants at the syscall level (no root needed; WSL2 kernel ≥5.13). A compromised or prompt-injected CLI agent inside its cgroup still cannot open `~/.ssh`, the Brain DB, or `kb/` outside its grant. Phase 4 (lands with the G-01 blocker work); until then A5 env-scrubbing + worktree isolation are the interim boundary.
 - **A7 — Teardown:** on success-merged or discard, `git worktree remove`; artifacts (below) are copied out first. An unchanged/empty worktree is auto-removed.
 
 ## 4. Brief format (`BRIEF.md` written into the worktree)

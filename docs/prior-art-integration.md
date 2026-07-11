@@ -113,3 +113,29 @@ antarikshSkills already runs, by hand, the loop localAI wants to automate:
 4. **spec 08** — BRIEF gains `mode: sync|async|ongoing` + atomic-task size caps in constraints (CAO, ai-auto-work).
 5. **spec 10** — gap-detection: aim background scraping at calibration-error hotspots, not broad crawl (GraphGen).
 6. **docs/open-questions.md** — park: graphmind-as-library vs pattern-port; HippoRAG/DSPy/Constitutional-AI; CubeSandbox eBPF egress; Gnap.
+
+## antarikshSkills v2 — machine-invocation frontmatter contract (added 2026-07-11)
+
+The skills stay canonical + dual-use (human via `/ak-*`, Brain via job dispatch — the
+
+## antarikshSkills → Brain-invocation (v2 frontmatter contract)
+
+antarikshSkills is the hand-operated prototype (this doc's premise). Its 24 `/ak-*` skills seed the Brain's *process* library — repair prompts (ak-tdd/ak-code/ak-diagnose/ak-bughunt → spec 09), review prompt (ak-review = executor≠reviewer, spec 09 rung 1.5), security review (ak-security → spec 05 C6), brief/decision seeds (ak-spec/ak-align/ak-grill), and the already-ported ak-compact/ak-grok/ak-handoff. Complementary to fabric's *content* patterns (L18b): fabric = what-to-say, antarikshSkills = how-to-work.
+
+**Do NOT fork.** Skills are dual-use (human + Brain) — that IS the Phase-1.5 design ("automate skill-by-skill underneath the same files"). Upgrade each skill's frontmatter *in place* as it gets automated, so the repo stays canonical for both callers. New machine-invocation fields:
+
+| Field | Why | Spec tie |
+|---|---|---|
+| `verify:` | machine-checkable done-predicate (tests pass / file exists / schema valid) — prose "verify it works" isn't dispatchable | spec 04 O12b |
+| `privileged:` + `max_provenance:` | tool-lockout must know before dispatch whether the skill needs privileged tools and its max input trust | spec 07 H4 |
+| `task_class:` | variant dispatch | spec 10 L11c |
+| `budget:` | cost/iteration hint | CON-11 |
+| grants block | declared fs access (shepherd A5b) | spec 08 A5b |
+
+Human-gate points ("wait for confirmation") map to UI confirmations (spec 11 S3) when Brain-run, or auto-`verify` when the predicate is machine-checkable. Rollout tracks Phase 1.5→2 skill-by-skill; a skill without v2 fields stays human-only until upgraded.
+
+## shepherd (execution substrate) — 2 adoptions
+
+Mostly convergent (retained-proposals = A15 no-auto-merge; worktree CoW = A4; replay traces = E1/RS12). Two patterns we lacked:
+- **A5b declared path grants** — task signature IS the permission surface; supervisor provisions from the declaration. Adopted into spec 08 A5b.
+- **A6b Landlock kernel fs sandbox** — layered under the cgroup resource cap: caps *access* not just *resources*, syscall-level, no root. Adopted into spec 08 A6b (Phase 4). Strictly stronger G-07/S6 story than resource caps alone.
