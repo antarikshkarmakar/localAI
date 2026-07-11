@@ -194,6 +194,27 @@ CREATE TABLE prompt_library (
 
 - **M12** — Exactly one `active` version per `(name, task_class)` (partial unique index). Promotion `candidate → active` requires council security review (CON-8) — enforcement lives in spec `10`'s promotion flow, schema here only records it (`decisions` row id in payload). Per-task-class variants exist only via the fork path (spec 10 L11c); `'all'` is the default until a seesaw conflict forks one. Dispatch: exact `(name, task_class)` match first, fall back to `(name, 'all')`.
 
+### 5.1 Preference / judgment records — taste, distinct from facts and recipes (Pachaar pattern)
+
+Facts (semantic, §4) answer "what is true." Recipes (`prompt_library`, above) answer "how to do the task." Neither captures **taste** — what the *user* considers quality, patterns they always reject, "what should never be copied." This is a third, small, high-value layer.
+
+```sql
+CREATE TABLE preferences (
+    id INTEGER PRIMARY KEY,
+    domain TEXT NOT NULL,             -- 'writing'|'code'|'product'|'research'|... (where it applies)
+    principle TEXT NOT NULL,          -- the reusable judgment ("prefer one complete workflow over feature demos")
+    reason TEXT NOT NULL,             -- WHY it crossed the bar (Pachaar: save reasons, not resources)
+    anti_pattern TEXT,                -- what to NEVER copy (every good example teaches a bad one)
+    source_event INTEGER REFERENCES events(id),  -- the correction/signal that created it (RS0)
+    created_seq INTEGER NOT NULL, updated_seq INTEGER NOT NULL,
+    last_affirmed_seq INTEGER         -- when last confirmed still-valid (staleness audit)
+);
+```
+
+- **M12b — Explicit-save only (no auto-distill):** a preference is written ONLY on an explicit user signal — a process-correction captured at rollup (spec 16 RS0, highest-weight) or an intentional "remember this standard." The scrape→distill pipeline (spec 13) NEVER writes here. Friction is the feature: auto-accumulation turns taste into a junk drawer where nothing is valuable.
+- **M12c — Consulted first, cheap:** at generation the relevant-domain preferences are injected ahead of retrieved facts (they shape *how* to use facts). The set is small by design — dozens, not thousands — so this costs little context and can precede the dynamic region without wrecking the KV prefix cache (spec 03 I2b: keep the static safety prefix first, preferences next, retrieved facts last).
+- **M12d — Self-audited (curated beats accumulated):** a scheduled job (spec 04 O15) samples preferences and asks the local model: still represents the user's thinking? duplicated by another entry? reason still clear? A stale/duplicate one is surfaced for the user to update or dismiss (never auto-deleted — spec 12 U6). This is the fact-audit (spec 05 mode 4) applied to taste. Growth is bounded by merge-on-duplicate, not by a hard cap.
+
 ## 6. Hot-Cache Eviction (draft's "elastic TTL", made concrete)
 
 All semantic data lives on disk (SQLite/OKF); the *hot cache* is an in-process map of deserialized chunks + their float32 vectors (int8 is for storage; scoring re-ranks top candidates in f32).
