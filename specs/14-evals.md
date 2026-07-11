@@ -20,6 +20,7 @@ Each is a versioned, frozen fixture set under `evals/<family>/`. Frozen = change
 | `safety_invariants` | the S1 invariant set | — (CI-blocking) | adversarial inputs → must-block assertions |
 | `reward_integrity` | anti-gaming | G-02 | crafted "gameable" tasks → reward must NOT reward them |
 | `throughput` | tok/s, latency, RAM | KPI-04/05 | fixed prompts, measured, logged |
+| `memory_ops` | memory-system efficiency (Mercury/MemGPT operational-benchmark class) | KPI-08 adjunct | (a) **context_efficiency**: tokens injected to restore working state for a fixed task set — trend must not grow as KB grows (bloat alarm); (b) **duplicate_memory_rate**: fraction of near-duplicate chunks/facts stored (shingle overlap) — dedup (D4, M1 content-hash) should hold it near zero; (c) resurfacing precision once proactive injection lands (open-questions, Phase 4): injected reminders judged relevant vs noise |
 
 ## 2. Determinism (GAPS G-20)
 
