@@ -89,6 +89,7 @@ Every autonomous change to how the Brain behaves (prompt, router weights, source
 ## 6. Cold start (GAPS G-16)
 
 - **L18** — Bandit seeded with priors (spec 06 R12); prompt library seeded with hand-written v1 prompts (all `active`); KB optionally bootstrapped with a starter knowledge set. Learning metrics (KPI-06/07) reported only after warm-up thresholds so early noise doesn't pollute baselines.
+- **L18b — Seed corpus from fabric (danielmiessler/fabric, MIT):** the v1 prompt library draws on a *curated subset* of fabric's crowdsourced patterns — especially `summarize`/`extract_*`/`analyze_paper`-class patterns for the ingestion/distill pipeline (spec 13). Curated = human-reviewed + adapted to our provenance preamble, not bulk-imported; each seeded entry recorded with source attribution. Their System-section-only finding matches our prompt structure. Better than hand-writing 30 prompts from scratch at cold start.
 
 ## 7. Acceptance Criteria / Test Anchors
 
