@@ -10,7 +10,7 @@
 //! - H10 (spec 09): on startup, `reconcile_spill` drains the spill file back
 //!   into SQLite, then truncates it.
 //!
-//! Ordering: `events.id` (rowid) is the sequence; wall-clock `created_at` is
+//! Ordering: `events.id` (rowid) is the sequence; wall-clock `ts` is
 //! caller-injected and informational only (G-09).
 
 use serde::{Deserialize, Serialize};
@@ -31,16 +31,20 @@ pub enum LedgerError {
     SpillIo(#[from] std::io::Error),
 }
 
-/// One ledger event (spec 02 episodic tier).
+/// One ledger event — mirrors the spec 02 §3 `events` DDL exactly.
+/// task_id / trace_id travel inside `payload` (promoted to columns later if hot).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRecord {
+    /// RFC3339 UTC, injected by caller — never read from the clock here (G-09).
+    pub ts: String,
+    /// 'brain' | 'worker:<kind>' | 'council:<provider>' | 'agent:<cli>' | 'user'
+    pub actor: String,
     pub kind: String,
-    pub task_id: Option<i64>,
-    pub agent: Option<String>,
-    pub body: serde_json::Value,
-    pub trace_id: Option<String>,
-    /// RFC3339, injected by caller — never read from the clock here (G-09).
-    pub created_at: String,
+    /// JSON; NEVER contains secrets (CON-9/CON-13 — SecretFilter runs upstream).
+    pub payload: serde_json::Value,
+    pub parent_id: Option<i64>,
+    pub cost_tokens: i64,
+    pub outcome: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -192,15 +196,16 @@ async fn insert_event(
     ev: &EventRecord,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        r#"INSERT INTO events (created_at, kind, task_id, agent, body, trace_id)
-           VALUES (?, ?, ?, ?, ?, ?)"#,
+        r#"INSERT INTO events (ts, actor, kind, payload, parent_id, cost_tokens, outcome)
+           VALUES (?, ?, ?, ?, ?, ?, ?)"#,
     )
-    .bind(&ev.created_at)
+    .bind(&ev.ts)
+    .bind(&ev.actor)
     .bind(&ev.kind)
-    .bind(ev.task_id)
-    .bind(&ev.agent)
-    .bind(ev.body.to_string())
-    .bind(&ev.trace_id)
+    .bind(ev.payload.to_string())
+    .bind(ev.parent_id)
+    .bind(ev.cost_tokens)
+    .bind(&ev.outcome)
     .execute(executor)
     .await?;
     Ok(())
@@ -274,12 +279,13 @@ mod tests {
 
     fn ev(kind: &str) -> EventRecord {
         EventRecord {
+            ts: "2026-07-08T12:00:00Z".into(),
+            actor: "brain".into(),
             kind: kind.into(),
-            task_id: None,
-            agent: None,
-            body: serde_json::json!({"k": kind}),
-            trace_id: Some("t-1".into()),
-            created_at: "2026-07-08T12:00:00Z".into(),
+            payload: serde_json::json!({"k": kind}),
+            parent_id: None,
+            cost_tokens: 0,
+            outcome: None,
         }
     }
 
@@ -308,7 +314,7 @@ mod tests {
         writer.await.unwrap();
 
         let (kind, body): (String, String) =
-            sqlx::query_as("SELECT kind, body FROM events LIMIT 1")
+            sqlx::query_as("SELECT kind, payload FROM events LIMIT 1")
                 .fetch_one(&pool)
                 .await
                 .unwrap();

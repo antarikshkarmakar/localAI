@@ -66,6 +66,22 @@ impl Provenance {
     }
 }
 
+/// Wire-format names — the single source of truth for provenance strings in
+/// DB rows and worker JSON (schemas/worker-result.schema.json). Must stay
+/// identical to the serde variant names; locked by test below.
+impl std::fmt::Display for Provenance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Provenance::System => "System",
+            Provenance::UserDirect => "UserDirect",
+            Provenance::VerifiedKb => "VerifiedKb",
+            Provenance::UnverifiedKb => "UnverifiedKb",
+            Provenance::Untrusted => "Untrusted",
+        };
+        f.write_str(s)
+    }
+}
+
 /// Task/job status.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum JobStatus {
@@ -98,5 +114,20 @@ mod tests {
         assert!(Provenance::VerifiedKb.is_trusted());
         assert!(!Provenance::Untrusted.is_trusted());
         assert!(!Provenance::UnverifiedKb.is_trusted());
+    }
+
+    // Display and serde must never diverge — both are wire formats.
+    #[test]
+    fn provenance_display_matches_serde() {
+        for p in [
+            Provenance::System,
+            Provenance::UserDirect,
+            Provenance::VerifiedKb,
+            Provenance::UnverifiedKb,
+            Provenance::Untrusted,
+        ] {
+            let via_serde = serde_json::to_value(p).expect("serializes");
+            assert_eq!(via_serde.as_str(), Some(p.to_string().as_str()));
+        }
     }
 }

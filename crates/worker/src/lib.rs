@@ -136,14 +136,9 @@ impl WorkerResult {
     }
 
     fn provenance_string(p: Provenance) -> String {
-        match p {
-            Provenance::System => "System",
-            Provenance::UserDirect => "UserDirect",
-            Provenance::VerifiedKb => "VerifiedKb",
-            Provenance::UnverifiedKb => "UnverifiedKb",
-            Provenance::Untrusted => "Untrusted",
-        }
-        .to_string()
+        // Single source of truth: core's Display (locked to serde names by a
+        // core test). No local copy of the wire strings.
+        p.to_string()
     }
 }
 
