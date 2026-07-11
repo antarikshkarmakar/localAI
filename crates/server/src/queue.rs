@@ -139,6 +139,41 @@ impl JobQueue {
         }))
     }
 
+    /// Startup recovery (spec 01 R-startup step 4, spec 09 H10): after a Brain
+    /// crash, EVERY `running` job is an orphan — its lease-holder process is
+    /// gone regardless of lease expiry. Re-queue those with attempts left,
+    /// quarantine the exhausted. Distinct from [`sweep_expired`], which is the
+    /// steady-state lease check during normal operation. Idempotent — a second
+    /// call after recovery finds nothing `running`.
+    pub async fn recover_orphans(&self) -> Result<SweepStats, QueueError> {
+        let mut tx = self.pool.begin().await?;
+
+        let requeued = sqlx::query(
+            r#"UPDATE jobs
+               SET status = 'queued', lease_expires = NULL, started = NULL
+               WHERE status = 'running' AND attempts < max_attempts"#,
+        )
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+        let quarantined = sqlx::query(
+            r#"UPDATE jobs
+               SET status = 'quarantined', lease_expires = NULL,
+                   error = 'orphaned by Brain crash at max attempts (spec 01 R-startup)'
+               WHERE status = 'running' AND attempts >= max_attempts"#,
+        )
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+        tx.commit().await?;
+        Ok(SweepStats {
+            requeued,
+            quarantined,
+        })
+    }
+
     /// Sweep expired leases (O3): presumed-crashed jobs re-queue if
     /// `attempts < max_attempts`, else quarantine.
     pub async fn sweep_expired(&self, now: &str) -> Result<SweepStats, QueueError> {
@@ -328,6 +363,63 @@ mod tests {
             .unwrap();
         assert!(none.is_none());
 
+        let status: String = sqlx::query_scalar("SELECT status FROM jobs LIMIT 1")
+            .fetch_one(&q.pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "quarantined");
+    }
+
+    // Startup recovery (R-startup step 4): a running job with attempts left is
+    // re-queued regardless of lease; recovery is idempotent.
+    #[tokio::test]
+    async fn recover_orphans_requeues_running_regardless_of_lease() {
+        let q = test_queue().await;
+        q.enqueue(req("scrape", None)).await.unwrap();
+        // Claim with a lease FAR in the future — not expired.
+        let claimed = q
+            .claim_next("2026-07-08T10:00:00Z", "2027-01-01T00:00:00Z")
+            .await
+            .unwrap()
+            .expect("claimed");
+        assert_eq!(claimed.attempts, 1);
+
+        // Crash recovery: re-queues despite the un-expired lease.
+        let stats = q.recover_orphans().await.unwrap();
+        assert_eq!(
+            stats,
+            SweepStats {
+                requeued: 1,
+                quarantined: 0
+            }
+        );
+
+        // Idempotent: a second recovery finds nothing running.
+        let again = q.recover_orphans().await.unwrap();
+        assert_eq!(again, SweepStats::default());
+
+        // The job is claimable again.
+        let reclaimed = q
+            .claim_next("2026-07-08T11:00:00Z", "2026-07-08T11:10:00Z")
+            .await
+            .unwrap()
+            .expect("re-claimed");
+        assert_eq!(reclaimed.attempts, 2);
+    }
+
+    // Orphan at max attempts → quarantined, not re-queued.
+    #[tokio::test]
+    async fn recover_orphans_quarantines_exhausted() {
+        let q = test_queue().await;
+        q.enqueue(req("scrape", None)).await.unwrap();
+        // Drive attempts to max via crash cycles using recovery each time.
+        for _ in 0..3 {
+            q.claim_next("2026-07-08T10:00:00Z", "2027-01-01T00:00:00Z")
+                .await
+                .unwrap()
+                .expect("claimed");
+            q.recover_orphans().await.unwrap();
+        }
         let status: String = sqlx::query_scalar("SELECT status FROM jobs LIMIT 1")
             .fetch_one(&q.pool)
             .await

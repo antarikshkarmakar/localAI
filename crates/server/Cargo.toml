@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 localai-core = { path = "../core" }
+localai-ledger = { path = "../ledger" }
+localai-migration = { path = "../migration" }
 tokio.workspace = true
 sqlx.workspace = true
 serde.workspace = true
@@ -15,7 +17,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-localai-migration = { path = "../migration" }
+tempfile.workspace = true
 
 [lints]
 workspace = true

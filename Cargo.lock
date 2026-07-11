@@ -926,10 +926,12 @@ name = "localai-server"
 version = "0.1.0"
 dependencies = [
  "localai-core",
+ "localai-ledger",
  "localai-migration",
  "serde",
  "serde_json",
  "sqlx",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
