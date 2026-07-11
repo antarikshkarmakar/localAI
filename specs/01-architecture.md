@@ -116,6 +116,7 @@ Startup sequence (each step gated, failure → clear error + exit code):
 Shutdown (SIGTERM): stop accepting commands → let in-flight worker jobs finish (grace 30 s) → flush ledger channel → SIGTERM children → `SessionEnd` event → exit 0.
 
 - **R15** — Brain must be crash-safe at every point in this sequence: any state that matters is in SQLite before it is acted on ("write-ahead intent": job rows get status `running` + `started_at` *before* spawn).
+- **R16 — Heartbeat independence (G-21):** the watchdog heartbeat (counter file, spec 09 H9) is written by a **dedicated timer task**, never from the dispatch loop or any request path. A legitimate 80-second generation (RV-03) must not read as a hang. Corollary: **no blocking/CPU-heavy work on the async runtime threads** — anything that could pin a core goes through `spawn_blocking`, or it starves the heartbeat task and triggers a false restart. The watchdog restart threshold (`poll_interval × max_missed`) only needs to exceed scheduler jitter, not generation time — this rule is what makes tight thresholds safe.
 
 ## 6. Configuration
 

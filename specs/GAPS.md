@@ -98,6 +98,26 @@ Append-only ledger + every agent run's artifacts + multiple GGUF models + WAL �
 Specs lean on TDD, but LLM outputs, embeddings, timestamps, and bandit sampling are nondeterministic → flaky tests, unreproducible bugs.
 **Fix:** seed everything seedable (bandit RNG, sampling temperature=0 paths for tests); model + council calls behind traits that mock deterministically in tests (already R6); a "record/replay" mode capturing real model I/O for regression fixtures. → cross-cutting, note in `01`/`14`.
 
+### G-21 — Watchdog false-restart on a busy (not hung) Brain
+Watchdog defaults (poll 1 s × max_missed 3 = 3 s) vs legitimate 80 s generations (RV-03): if the heartbeat were written from any work-carrying path, every long generation reads as a hang → restart loop that kills healthy work.
+**Fix:** heartbeat written by a dedicated timer task only; all blocking/CPU-heavy Brain work via `spawn_blocking`; threshold sized to scheduler jitter. → spec `01` R16 (added), watchdog bin unchanged (dumbness preserved).
+
+### G-22 — SQLITE_BUSY without busy_timeout + writer discipline
+Multiple pools (Brain writer, UI reads, maintenance) on one file: a momentary lock without `busy_timeout` surfaces as hard SQLITE_BUSY errors under WAL checkpointing; two writer pools deadlock-prone.
+**Fix:** `busy_timeout=5s`, `foreign_keys=ON`, WAL + synchronous=NORMAL set on every pooled connection in one place (migration crate's connect path); single writer pool (max_connections=1) as explicit discipline (R1); reads use a separate read-only pool. → `migration` crate (applied), spec `01` startup.
+
+### G-23 — reqwest built TLS-less: council calls will fail at Phase 4
+Workspace pins `reqwest` with `default-features=false, features=["json"]` — correct for loopback llama-server (ADR-004), but council adapters (spec 05) need HTTPS. Silent until the first cloud call errors at runtime.
+**Fix:** council crate adds its own reqwest dep with `rustls-tls` feature when built (Phase 4); loopback client stays TLS-less. Recorded so the Phase-4 implementer doesn't debug a missing-TLS panic. → spec `05` implementation note.
+
+### G-24 — Relative default paths defeat the CON-4 guard
+`paths.db_path` default `data/localai.db` resolves relative to CWD: launched from a `/mnt/c` checkout, data lands on the 9P mount the guard exists to forbid — the guard must check the *canonicalized* path, not the config string.
+**Fix:** startup guard (spec 01 R-startup step 1) canonicalizes every configured path before the `/mnt/*` refusal check; runbook documents Linux-fs data dirs; consider absolute default `~/.localai/` at Brain assembly. → spec `01` T3 scope widened.
+
+### G-25 — Wire-string duplication drifts (enum names as contract)
+Provenance/status strings appear in Rust enums (core serde), SQL CHECK-less TEXT columns, JSON schemas, and (formerly) hand-rolled `match` copies in workers. Two sources of the same string = eventual silent drift → provenance misparse = trust bug (G-01-adjacent).
+**Fix:** core enums are the single source: `Display` locked to serde names by test (applied); workers/DB writers use it; JSON schemas list the same names (schema check, docs/ci.md step 7, asserts equality when it lands). → `core` (applied), spec `14` schema-check scope.
+
 ---
 
 ## New constraints/objectives to fold into spec 00
