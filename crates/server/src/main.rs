@@ -11,29 +11,25 @@
 
 use chrono::Utc;
 use localai_core::config::Config;
-use localai_core::ErrorClass;
+use localai_server::process_runner::ProcessRunner;
 use localai_server::queue::JobQueue;
 use localai_server::startup::boot;
-use localai_server::supervisor::{DoneStatus, JobRunner, RunOutcome, Supervisor};
+use localai_server::supervisor::{JobRunner, Supervisor};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Placeholder runner until real process-spawning workers land (Phase 3).
-/// Every job fails `bug`-class → quarantined, never silently "done".
-struct UnimplementedRunner;
-
-impl JobRunner for UnimplementedRunner {
-    fn run_sync(&self, kind: &str, _payload: &str) -> RunOutcome {
-        RunOutcome {
-            status: DoneStatus::Failed,
-            result_json: None,
-            error: Some(format!(
-                "no worker registered for job kind '{kind}' (Phase 3)"
-            )),
-            error_class: Some(ErrorClass::Bug),
-        }
+/// Locate the `localai-worker` binary: LOCALAI_WORKER_BIN env wins, else a
+/// sibling of the running `localai-brain` executable (cargo puts workspace
+/// bins in the same target dir).
+fn worker_bin_path() -> PathBuf {
+    if let Ok(p) = std::env::var("LOCALAI_WORKER_BIN") {
+        return PathBuf::from(p);
     }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.join("localai-worker")))
+        .unwrap_or_else(|| PathBuf::from("localai-worker"))
 }
 
 #[tokio::main]
@@ -71,9 +67,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Brain booted"
     );
 
-    // Supervisor over a queue view on the same pool.
+    // Supervisor dispatching to real worker child processes (spec 04 O8).
+    // Job wall-clock timeout = the lease: a job must finish inside its lease
+    // or it's presumed dead anyway (O3/O10 aligned).
+    let worker_bin = worker_bin_path();
+    if !worker_bin.exists() {
+        tracing::warn!(bin = %worker_bin.display(),
+            "localai-worker binary not found — jobs will fail until it is built \
+             (cargo build --bin localai-worker) or LOCALAI_WORKER_BIN is set");
+    }
     let queue = Arc::new(JobQueue::new(brain.pool.clone()));
-    let runner: Arc<dyn JobRunner> = Arc::new(UnimplementedRunner);
+    let runner: Arc<dyn JobRunner> = Arc::new(ProcessRunner::new(
+        worker_bin,
+        Duration::from_secs(config.queue.lease_secs),
+    ));
     let supervisor = Supervisor::new(brain.pool.clone(), queue, runner, &config.queue);
     let lease_secs = config.queue.lease_secs as i64;
 
