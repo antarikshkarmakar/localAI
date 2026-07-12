@@ -9,11 +9,77 @@
 //! In Phase 2, each kind dispatches to a real handler. For now, all handlers return
 //! "not implemented" errors.
 
-use localai_worker::{run_worker, WorkerError, WorkerExecError, WorkerPayload, WorkerResult};
+use localai_worker::{
+    run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload, WorkerResult,
+};
 use std::io::{self, Read};
+use std::time::Duration;
 
 /// Exit code for memory limit breach (spec 04 O7).
 pub const EXIT_MEM_LIMIT: i32 = 137;
+
+/// Real HTTP fetcher using reqwest::blocking (spec 13 D1-D6).
+struct RealFetcher;
+
+impl RealFetcher {
+    fn new() -> Self {
+        Self
+    }
+}
+
+impl scrape::Fetcher for RealFetcher {
+    fn get(
+        &self,
+        url: &str,
+        max_bytes: u64,
+        timeout: Duration,
+    ) -> Result<scrape::FetchResponse, scrape::FetchError> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|e| scrape::FetchError::Network(e.to_string()))?;
+
+        let response = client.get(url).send().map_err(|e| {
+            if e.is_timeout() {
+                scrape::FetchError::Timeout
+            } else if e.is_status() {
+                match e.status() {
+                    Some(s) => match s.as_u16() {
+                        404 => scrape::FetchError::NotFound,
+                        403 => scrape::FetchError::Forbidden,
+                        429 => scrape::FetchError::TooManyRequests,
+                        code if code >= 500 => scrape::FetchError::ServerError(code),
+                        _ => scrape::FetchError::Other(format!("HTTP {}", s)),
+                    },
+                    None => scrape::FetchError::Network(e.to_string()),
+                }
+            } else {
+                scrape::FetchError::Network(e.to_string())
+            }
+        })?;
+
+        let status = response.status().as_u16();
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        // Stream the body with size cap (spec 13 D16).
+        let mut body = Vec::new();
+        let mut limited_reader = response.take(max_bytes);
+        use std::io::Read as IoRead;
+        limited_reader
+            .read_to_end(&mut body)
+            .map_err(|e| scrape::FetchError::Network(e.to_string()))?;
+
+        Ok(scrape::FetchResponse {
+            status,
+            body,
+            content_type,
+        })
+    }
+}
 
 /// Registered handlers by job kind (phase 2: real implementations).
 fn get_handler(kind: &str) -> fn(WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
@@ -28,11 +94,9 @@ fn get_handler(kind: &str) -> fn(WorkerPayload) -> Result<serde_json::Value, Wor
     }
 }
 
-/// Phase 2: real scrape handler.
-fn handle_scrape(_payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
-    Err(WorkerExecError::Handler(
-        "not implemented: scrape".to_string(),
-    ))
+/// Phase 2: real scrape handler (spec 13 D1-D6).
+fn handle_scrape(payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
+    scrape::handle(payload, &RealFetcher::new())
 }
 
 /// Phase 2: real ingest handler.

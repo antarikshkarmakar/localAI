@@ -11,11 +11,18 @@ path = "src/main.rs"
 
 [dependencies]
 localai-core = { path = "../core" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-tracing = "0.1"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+sha2.workspace = true
+# Scraper needs TLS (G-23): rustls here; the loopback inference client stays TLS-less.
+# Also needs blocking for sync HTTP client in worker (spec 13 D1).
+reqwest = { workspace = true, features = ["rustls-tls", "blocking"] }
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

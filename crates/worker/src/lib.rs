@@ -11,6 +11,8 @@
 //! - No panics escape; all errors serialize as valid JSON (spec 04 O8)
 //! - Round-trip: WorkerResult → JSON → WorkerResult are identical
 
+pub mod scrape;
+
 use localai_core::{ErrorClass, Provenance};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -153,6 +155,13 @@ pub enum WorkerExecError {
 
     #[error("resource limit: {0}")]
     Resource(String),
+
+    /// Handler-determined classification carried through verbatim — for
+    /// handlers whose internal errors already know their class (e.g. the
+    /// scraper: allowlist refusal = Input, 429 = Transient). Flattening
+    /// these to Handler/Bug would poison the spec-09 classifier stats.
+    #[error("{1}")]
+    Classified(ErrorClass, String),
 }
 
 impl WorkerExecError {
@@ -162,6 +171,7 @@ impl WorkerExecError {
             Self::Parse(_) => ErrorClass::Input,
             Self::Handler(_) => ErrorClass::Bug,
             Self::Resource(_) => ErrorClass::Resource,
+            Self::Classified(class, _) => *class,
         }
     }
 }
