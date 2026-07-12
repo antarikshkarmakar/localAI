@@ -23,6 +23,7 @@ route ∈ {
 ```
 
 - **R1** — Route is chosen by a **contextual bandit** over features (§3), NOT a fixed rule tree. Rules provide only the *priors* (§5, G-16). The bandit learns, per task-class, which route actually pays off.
+- **R1b — LOCAL_SELFCHECK = Parallel-Distill-Refine, not majority vote (arXiv 2510.01123):** k drafts (serial on CPU anyway, I1 — same cost) → **distill** into a bounded workspace (E4B, cheap) → **refine** conditioned on the workspace (12B). Beats k-sample voting at matched compute, and the bounded workspace keeps the refine context small (RV-03, M3b spirit) instead of dragging k full drafts along. k and the workspace budget are config. The sequential variant (k=1, iterate) is the same machinery the repair ladder already applies to failure evidence.
 - **R2** — Every route decision emits an `OnRoute` hook + ledger event with: features, chosen route, prior, exploration flag, `trace_id`. This is the reward-attribution anchor.
 
 ## 2. Confidence signals (features feeding the router)
