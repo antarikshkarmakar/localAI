@@ -10,7 +10,7 @@
 //! "not implemented" errors.
 
 use localai_worker::{
-    run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload, WorkerResult,
+    ingest, run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload, WorkerResult,
 };
 use std::io::{self, Read};
 use std::time::Duration;
@@ -99,11 +99,9 @@ fn handle_scrape(payload: WorkerPayload) -> Result<serde_json::Value, WorkerExec
     scrape::handle(payload, &RealFetcher::new())
 }
 
-/// Phase 2: real ingest handler.
-fn handle_ingest(_payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
-    Err(WorkerExecError::Handler(
-        "not implemented: ingest".to_string(),
-    ))
+/// Phase 2: real ingest handler (spec 13 D11, D14; spec 02 M10).
+fn handle_ingest(payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
+    ingest::handle(payload)
 }
 
 /// Phase 2: real distill handler.

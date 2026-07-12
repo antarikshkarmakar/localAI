@@ -11,6 +11,7 @@
 //! - No panics escape; all errors serialize as valid JSON (spec 04 O8)
 //! - Round-trip: WorkerResult → JSON → WorkerResult are identical
 
+pub mod ingest;
 pub mod scrape;
 
 use localai_core::{ErrorClass, Provenance};
