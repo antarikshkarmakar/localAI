@@ -10,7 +10,7 @@
 //! "not implemented" errors.
 
 use localai_worker::{
-    ingest, run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload, WorkerResult,
+    distill, ingest, run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload, WorkerResult,
 };
 use std::io::{self, Read};
 use std::time::Duration;
@@ -81,6 +81,67 @@ impl scrape::Fetcher for RealFetcher {
     }
 }
 
+/// Real model client for distillation (spec 10 §2, spec 03 I1).
+/// Calls llama-server /v1/chat/completions (or /completion) endpoint.
+/// TODO(I1): route through Brain InferenceQueue via MCP once harness lands.
+struct RealModelClient {
+    base_url: String,
+}
+
+impl RealModelClient {
+    fn new(base_url: String) -> Self {
+        Self { base_url }
+    }
+}
+
+impl distill::ModelClient for RealModelClient {
+    fn generate(&self, system: &str, user: &str) -> Result<String, distill::ModelError> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()
+            .map_err(|e| distill::ModelError::Network(e.to_string()))?;
+
+        let url = format!("{}/v1/chat/completions", self.base_url);
+
+        let body = serde_json::json!({
+            "model": "local",
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user}
+            ],
+            "temperature": 0.2,
+            "max_tokens": 2048,
+        });
+
+        let response = client.post(&url).json(&body).send().map_err(|e| {
+            if e.is_timeout() {
+                distill::ModelError::Timeout
+            } else {
+                distill::ModelError::Network(e.to_string())
+            }
+        })?;
+
+        if !response.status().is_success() {
+            return Err(distill::ModelError::BadResponse(format!(
+                "HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json: serde_json::Value = response.json().map_err(|e| {
+            distill::ModelError::BadResponse(format!("failed to parse response: {}", e))
+        })?;
+
+        // Extract text from llama-server /v1/chat/completions response
+        json["choices"]
+            .get(0)
+            .and_then(|c| c["message"].get("content"))
+            .and_then(|content| content.as_str())
+            .ok_or_else(|| distill::ModelError::BadResponse("no content in response".to_string()))
+            .map(|s| s.to_string())
+    }
+}
+
 /// Registered handlers by job kind (phase 2: real implementations).
 fn get_handler(kind: &str) -> fn(WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
     match kind {
@@ -104,11 +165,22 @@ fn handle_ingest(payload: WorkerPayload) -> Result<serde_json::Value, WorkerExec
     ingest::handle(payload)
 }
 
-/// Phase 2: real distill handler.
-fn handle_distill(_payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
-    Err(WorkerExecError::Handler(
-        "not implemented: distill".to_string(),
-    ))
+/// Phase 2: real distill handler (spec 10 §2).
+fn handle_distill(payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
+    // Extract model_base_url from payload; default to loopback
+    let distill_payload: distill::DistillPayload = serde_json::from_value(payload.args.clone())
+        .map_err(|e| WorkerExecError::Parse(format!("invalid distill args: {}", e)))?;
+
+    // Default matches InferenceCfg default port (8080). The Brain normally
+    // passes model_base_url explicitly from config.inference.port; this
+    // fallback only applies to a hand-run worker.
+    let base_url = distill_payload
+        .model_base_url
+        .clone()
+        .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+
+    let client = RealModelClient::new(base_url);
+    distill::handle(payload, &client)
 }
 
 /// Phase 2: real agent handler.
