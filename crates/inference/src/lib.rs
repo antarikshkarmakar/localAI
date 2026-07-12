@@ -12,6 +12,7 @@ pub mod embeddings;
 pub mod error;
 pub mod generator;
 pub mod health;
+pub mod launch;
 pub mod queue;
 pub mod tokenize;
 pub mod transport;
