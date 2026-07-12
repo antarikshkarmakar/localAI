@@ -5,3 +5,4 @@ pub mod heartbeat;
 pub mod paths;
 pub mod queue;
 pub mod startup;
+pub mod supervisor;
