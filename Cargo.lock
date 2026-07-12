@@ -931,6 +931,14 @@ name = "localai-memory"
 version = "0.1.0"
 dependencies = [
  "localai-core",
+ "localai-migration",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -965,6 +973,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "localai-core",
+ "localai-inference",
  "localai-ledger",
  "localai-migration",
  "serde",

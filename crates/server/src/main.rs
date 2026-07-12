@@ -59,11 +59,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
+    let inference_state = if brain.inference.is_some() {
+        "up"
+    } else {
+        "disabled (no model_path — degraded/model-down, H12)"
+    };
     tracing::info!(
         db = %brain.db_path.display(),
         spill_reconciled = report.spill_reconciled,
         orphans_requeued = report.orphans.requeued,
         orphans_quarantined = report.orphans.quarantined,
+        inference = inference_state,
         "Brain booted"
     );
 

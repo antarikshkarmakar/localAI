@@ -9,6 +9,7 @@ license.workspace = true
 localai-core = { path = "../core" }
 localai-ledger = { path = "../ledger" }
 localai-migration = { path = "../migration" }
+localai-inference = { path = "../inference" }
 tokio.workspace = true
 sqlx.workspace = true
 serde.workspace = true

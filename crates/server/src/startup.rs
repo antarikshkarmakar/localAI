@@ -1,10 +1,11 @@
 //! Brain boot sequence (spec 01 §5 R-startup).
 //!
 //! Ordered, each step gated (failure → typed error, caller exits with a clear
-//! message). Implemented here: steps 1–4, 6-partial (ledger + heartbeat), 7.
-//! Steps 5 (spawn llama-server) and the rest of 6 (MCP server, UI) attach at
-//! their seams once those crates land — the boot returns a [`Brain`] holding
-//! the live subsystems so they can be wired in without reordering this.
+//! message). Implemented here: steps 1–5, 6-partial (ledger + heartbeat), 7.
+//! Step 5 (llama-server) is skipped when no model is configured — the Brain
+//! boots model-down (H12) rather than failing. The rest of step 6 (MCP server,
+//! UI) attaches at its seam later; boot returns a [`Brain`] holding the live
+//! subsystems so they wire in without reordering this.
 //!
 //! Crash-safety (R15): every step is either idempotent or write-ahead, so a
 //! crash at any point leaves a state the *next* boot recovers cleanly.
@@ -12,10 +13,15 @@
 use crate::heartbeat::Heartbeat;
 use crate::paths::{self, PathGuardError};
 use crate::queue::{JobQueue, SweepStats};
-use localai_core::config::Config;
+use localai_core::config::{Config, InferenceCfg};
+use localai_inference::launch::{
+    launch_and_wait, LaunchSpec, LlamaServerHandle, RealProcessSpawner,
+};
+use localai_inference::{HealthCheck, HttpTransport, InferenceQueue, LlamaTransport};
 use localai_ledger::{EventRecord, Ledger, LedgerConfig};
 use sqlx::SqlitePool;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -32,6 +38,34 @@ pub enum BootError {
 
     #[error("queue: {0}")]
     Queue(#[from] crate::queue::QueueError),
+
+    #[error("inference launch: {0}")]
+    Inference(#[from] localai_inference::launch::LaunchError),
+}
+
+/// Live inference subsystem (spec 03): the launched llama-server + the
+/// single-generation queue + a transport for health/generation. Absent when
+/// no model is configured (degraded/model-down mode, spec 09 H12).
+pub struct Inference {
+    pub server: LlamaServerHandle,
+    pub queue: Arc<InferenceQueue>,
+    pub transport: Arc<dyn LlamaTransport>,
+}
+
+/// Build a `LaunchSpec` from config, or `None` when no model is configured
+/// (inference disabled). Pure — no spawning, no I/O; unit-testable.
+pub fn launch_spec_from_config(cfg: &InferenceCfg) -> Option<LaunchSpec> {
+    if cfg.model_path.trim().is_empty() {
+        return None;
+    }
+    Some(LaunchSpec {
+        model_path: PathBuf::from(&cfg.model_path),
+        draft_path: (!cfg.draft_path.trim().is_empty()).then(|| PathBuf::from(&cfg.draft_path)),
+        port: cfg.port,
+        ctx: cfg.ctx,
+        threads: (cfg.threads > 0).then_some(cfg.threads),
+        extra_args: Vec::new(),
+    })
 }
 
 /// Live Brain subsystems, produced by [`boot`].
@@ -40,6 +74,8 @@ pub struct Brain {
     pub ledger: Ledger,
     pub queue: JobQueue,
     pub heartbeat: Heartbeat,
+    /// Local inference (llama-server + queue). None = degraded/model-down (H12).
+    pub inference: Option<Inference>,
     /// Ledger writer — awaited (not aborted) at shutdown so queued events flush.
     ledger_writer: tokio::task::JoinHandle<()>,
     /// Fire-and-forget tasks (heartbeat timer) — aborted at shutdown.
@@ -59,8 +95,16 @@ impl Brain {
             ledger,
             ledger_writer,
             background,
+            inference,
             ..
         } = self;
+        // Stop the model first (SIGTERM the child) so no generation races the
+        // DB close; failures here are logged, not fatal to shutdown.
+        if let Some(inf) = inference {
+            if let Err(e) = inf.server.shutdown().await {
+                tracing::warn!(error = %e, "llama-server shutdown error");
+            }
+        }
         drop(ledger); // close channel → writer drains remaining events + exits
         let _ = ledger_writer.await;
         for t in background {
@@ -103,6 +147,30 @@ pub async fn boot(
     let queue = JobQueue::new(pool.clone());
     let orphans = queue.recover_orphans().await?;
 
+    // Step 5 — spawn llama-server + wait healthy (spec 03 §1, I13). Skipped
+    // when no model is configured: the Brain boots model-down (H12) rather
+    // than failing, so data-plane work still runs.
+    let inference = match launch_spec_from_config(&config.inference) {
+        None => None,
+        Some(spec) => {
+            let base_url = format!("http://127.0.0.1:{}", config.inference.port);
+            let transport: Arc<dyn LlamaTransport> = Arc::new(HttpTransport::new(base_url));
+            let health = HealthCheck::new(transport.clone());
+            let server = launch_and_wait(
+                &spec,
+                &RealProcessSpawner,
+                &health,
+                Duration::from_secs(config.inference.health_timeout_s),
+            )
+            .await?;
+            Some(Inference {
+                server,
+                queue: Arc::new(InferenceQueue::new()),
+                transport,
+            })
+        }
+    };
+
     // Step 6 (partial) — start the ledger writer + the dedicated heartbeat
     // timer (R16: heartbeat is independent of all work paths).
     let (ledger, ledger_task) =
@@ -137,6 +205,7 @@ pub async fn boot(
         ledger,
         queue,
         heartbeat,
+        inference,
         ledger_writer: ledger_task,
         background: vec![hb_task],
         db_path,
@@ -164,6 +233,41 @@ mod tests {
         }
     }
 
+    // No model configured → inference disabled, no LaunchSpec.
+    #[test]
+    fn no_model_yields_no_launch_spec() {
+        let cfg = InferenceCfg::default(); // model_path empty
+        assert!(launch_spec_from_config(&cfg).is_none());
+    }
+
+    // Model configured → spec built with the right fields; draft/threads
+    // included only when set.
+    #[test]
+    fn model_config_builds_launch_spec() {
+        let cfg = InferenceCfg {
+            model_path: "/models/gemma4-e4b.gguf".into(),
+            draft_path: String::new(),
+            threads: 0,
+            port: 9090,
+            ..InferenceCfg::default()
+        };
+        let spec = launch_spec_from_config(&cfg).expect("spec built");
+        assert_eq!(spec.model_path, PathBuf::from("/models/gemma4-e4b.gguf"));
+        assert_eq!(spec.port, 9090);
+        assert!(spec.draft_path.is_none());
+        assert!(spec.threads.is_none());
+
+        let cfg2 = InferenceCfg {
+            model_path: "/m.gguf".into(),
+            draft_path: "/d.gguf".into(),
+            threads: 6,
+            ..InferenceCfg::default()
+        };
+        let spec2 = launch_spec_from_config(&cfg2).expect("spec built");
+        assert_eq!(spec2.draft_path, Some(PathBuf::from("/d.gguf")));
+        assert_eq!(spec2.threads, Some(6));
+    }
+
     #[tokio::test]
     async fn boot_creates_db_and_logs_session_start() {
         let dir = tempfile::tempdir().unwrap();
@@ -181,6 +285,10 @@ mod tests {
         .expect("boot");
 
         assert_eq!(report, RecoveryReport::default()); // clean first boot
+        assert!(
+            brain.inference.is_none(),
+            "no model configured → inference disabled"
+        );
 
         // Graceful shutdown awaits the ledger writer → SessionStart is flushed.
         let pool = brain.pool.clone();

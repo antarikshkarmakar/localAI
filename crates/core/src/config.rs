@@ -103,6 +103,13 @@ pub struct InferenceCfg {
     pub port: u16,
     pub ctx: u32,
     pub health_timeout_s: u64,
+    /// GGUF model path (ADR-003). Empty → inference disabled, Brain boots in
+    /// degraded/model-down mode (spec 09 H12) instead of failing.
+    pub model_path: String,
+    /// Optional MTP drafter GGUF (ADR-003 speculative decoding).
+    pub draft_path: String,
+    /// Worker threads for llama-server; 0 → launcher omits the flag.
+    pub threads: u32,
 }
 
 impl Default for InferenceCfg {
@@ -111,6 +118,9 @@ impl Default for InferenceCfg {
             port: 8080,
             ctx: 32_768,
             health_timeout_s: 120,
+            model_path: String::new(),
+            draft_path: String::new(),
+            threads: 0,
         }
     }
 }
