@@ -58,6 +58,7 @@ The three providers are **not** independent — overlapping training data, share
 - **C11** — Track **per-domain council accuracy** over time (audit outcomes by `domain`). Domains where the council is jointly unreliable get a discount factor applied to their consensus weight, surfaced to the router as lower confidence.
 - **C12** — Unanimous agreement on a *contested/niche* claim raises a flag, not certainty — logged with a `low_diversity` marker for later audit.
 - **C13** — Where feasible, one member is prompted for the *steelman of the opposing view* (contrastive check, kept from draft's counterfactual idea) so at least one voice actively probes for the failure.
+- **C13b — Anonymized peer-review ranking (karpathy llm-council pattern):** for judgment/decision mode (not empirical fact-check, which is source-gated by C7/C10), each member's answer is shown to the others with **model identities stripped**, and each ranks all answers on accuracy+insight without knowing which is whose. Prevents provider favoritism and self-preference from riding through as false consensus — a sharper G-04 defense than reasoning-only agreement. The chairman synthesizes from the anonymized ranking, not from raw votes. Cheap: one extra round on answers already generated.
 
 ## 5. Cost governance (CON-11, GAPS G-06)
 

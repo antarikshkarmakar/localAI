@@ -48,6 +48,8 @@ Context: no local weight training ever (32 GB CPU). Loop 4 = export trajectories
 | **Rejection-sampling SFT (STaR/ReST-style)** | ★ free verified data | Generate k samples → keep only ones passing the *objective* verifier (compiled AND tests pass, spec 06 R8) → SFT on winners. Our reward infra already labels these; training data accumulates as a side effect of normal operation. Anti-gaming inherits from R8 (verifier is not the model). | Phase 9 |
 | **Council-as-teacher distillation** | ★ attacks OBJ-2 directly | Every council escalation = (query, council-verified answer) pair — a distillation dataset we're already paying for. Periodically QLoRA E4B on it → local model absorbs what it used to escalate for → escalation rate (KPI-01) drops → cost drops. Flywheel: cloud teaches local. Pairs stored via spec 16 capture; SecretFilter (CON-13) scrubs before export. | Phase 9 |
 | **Plain SFT-QLoRA** | baseline | On high-reward trajectories. Simplest; run first as the control arm vs KTO/RFT. | Phase 9 |
+| **ReOPD** (arXiv 2607.04763) | ★ trajectory-native distill | Replayed-Prefix On-Policy Distillation: student learns from **pre-collected teacher trajectories** (our RS12 capture) with dense per-step supervision, ZERO environment re-runs, ≥4× faster than online OPD. Directly consumes what spec 16 already stores — the cheapest path from "we logged trajectories" to "we trained a smaller local model." Prime DGX-local Loop-4 candidate; step-decay prefix schedule avoids the reliability/occupancy shift. | Phase 9 (DGX-local) |
+| **autoresearch / AgentHub** (Karpathy) | ★ the DGX Loop-4 *shape* | The concrete pattern for training on the DGX: a single-GPU harness (fixed prepare/eval, mutable train.py, program.md policy) + a git-ratchet loop (inspect→propose→apply→eval→keep-or-revert). Verifiable output, reversible action, short horizon, bounded env = agent-compatible. Our repair ladder + L10 evolution already ARE a ratchet loop; autoresearch is that loop pointed at model training. Use as spec 17 local-training reference. | Phase 9 (DGX) |
 | **GRPO via ART (OpenPipe)** | ★ campaign mode | Client-server split matches our topology (local Brain orchestrates, ephemeral cloud GPU trains LoRA via vLLM+Unsloth). Runs as periodic *training campaigns* against task environments with verifiable rewards (code+tests, spec 14 evals) — needs NO user-traffic data (starvation workaround #2), complementary to KTO-on-logged-trajectories. RULER (relative group scoring) removes hand-labeling. **Blockers:** Gemma unsupported by Unsloth path (Loop 4 target = Gemma 4 E4B per ADR-003 — re-check support or shift target model, ADR-003 addendum); on-policy rollouts can't consume our offline RS12 logs. | Phase 9 |
 
 **Recommended composite (pre-decision, revisit Phase 9):** council-distillation + rejection-sampling SFT as the data recipe, KTO as the objective, QLoRA 4-bit as the method, E4B as the only target. Cheap cloud run (~$5–20/epoch at 4B scale), canary-gated like any self-mod.
@@ -78,3 +80,22 @@ Context: no local weight training ever (32 GB CPU). Loop 4 = export trajectories
 | Multi-modal output | Gemma 4 input-only. Needs separate model. |
 | Distributed agents | Single-workstation focus (OBJ-1). |
 | Cloud sync | Manual export only; write-once local design. |
+
+## DGX Spark reframing (hardware inbound — re-open at acquisition)
+
+The operator is acquiring an **NVIDIA DGX Spark (GB10 Grace-Blackwell, ~128 GB unified memory)**. This does NOT change the architecture — provenance gate, council, reward loop, memory tiers, crash-safety are hardware-independent and run now on the frozen local model. It relaxes exactly two things, re-open both at acquisition:
+
+| Constraint | Now | On DGX | Action |
+|---|---|---|---|
+| **CON-1** memory ceiling | 22 GB (RV-04: E4B-hot / 12B-on-demand) | ~128 GB | Re-cost residency — hold 12B + drafter + embeddings + headroom resident; MTP always-on. Re-open ADR-003/RV-04. |
+| **Loop 4 location** | cloud QLoRA (spec 17 P2) | on-box QLoRA/KTO/ReOPD | spec 17's `Trainer` trait (P11) already abstracts this — swap the cloud campaign for a local one. autoresearch shape (above) + ReOPD method (above). |
+
+Clarification the design already encodes (worth restating): this is **not** "train, then use." Loops 1–3 (knowledge/decision/procedural, spec 10) learn continuously on a frozen model with zero GPU — the KB compounds, the bandit re-weights, prompts evolve. The DGX only unlocks the *optional* Loop-4 weight training. Build the self-* loops now; let the DGX absorb Loop 4.
+
+## Rejected / watch — model-architecture & kernel papers (wrong layer for us)
+
+| Paper | Verdict |
+|---|---|
+| **MHAR** (2607.27230) Multi-Head Attention Residuals | REJECT: attention-architecture change, train-from-scratch. We run Gemma, don't pretrain base models. Only relevant if the plan ever includes pretraining — it doesn't. |
+| **Kernel Forge** (2607.24762) CUDA kernel opt via MCTS | REJECT (wrong layer, like PyTorch norm-fusion): llama.cpp/ggml owns kernels (ADR-004). Notable only because it was benchmarked ON DGX Spark GB10 — confirms the operator's hardware runs this workload class. |
+| **Speculate While You Reason** (2607.25816) self-speculating agent | WATCH: "the agent is its own best next-tool-call speculator," shared prefix-KV. Latency win on tool-heavy paths; marginal at single-user CPU volume, pairs conceptually with the MTP drafter (ADR-003). Revisit if tool-call latency becomes a measured bottleneck. |
