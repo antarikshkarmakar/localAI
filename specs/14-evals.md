@@ -58,6 +58,7 @@ Before any self-mod activates:
 
 - **E14** — `rag_qa` frozen in Phase 3 against the first real KB snapshot (spec 00 KPI-08 note); grows only by reviewed additions.
 - **E15** — `safety_invariants` grows every time a new attack or near-miss is found (each incident, spec 11 S14, becomes a regression case — the system's scar tissue).
+- **E15b — Verification horizon (Qwen, arXiv 2606.26300):** there is NO perfect verifier — by Rice's theorem every non-trivial semantic property is undecidable, and human intent is underspecified. Treat the eval/verifier set as an **evolving approximation**, never a fixed oracle: it must keep growing (E15) and a reward that looks maxed is suspect, not solved (ties G-02 anti-gaming, spec 06 R8 multi-signal). The KPI-10 velocity metric watches whether verification *coverage* is still expanding, not just whether current scores are high.
 - **E16** — Eval provenance: each case records why it exists (which KPI/threat/incident) so the set stays meaningful, not cargo-culted.
 
 ## 8. Acceptance Criteria / Test Anchors

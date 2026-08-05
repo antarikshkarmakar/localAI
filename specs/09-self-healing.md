@@ -34,7 +34,7 @@ Every failure is classified before action (spec 04 O13):
 Code job fails → climb only as far as needed, each rung logged, cost-capped (CON-11):
 
 ```
-1. Local repair:  feed captured error → local 12B → patch → re-run tests   (≤ N iters, N=3 default)
+1. Local repair:  sample K candidate patches from local 12B → keep the one that PASSES tests (select, don't self-critique — arXiv 2607.28576); only if none pass, iterate ≤ N (N=3). Selection over a verifier beats critique-and-rewrite at our model scale.
 1.5. Local audit: if step 1 doesn't converge, spawned E4B (fast model) reviews the 12B's patch in a separate process (executor≠reviewer, no context bleed) → votes confidence (adopt/reject/refine). Cheaper than council, independent judgment. (ai-auto-work pattern) With multiple candidate patches (N iterations), the auditor RANKS them relatively instead of grading each absolutely — relative judgment is far more reliable from a small model (RULER pattern, OpenPipe ART).
 2. Council assist: error + attempts → COUNCIL_DECIDE (spec 05) for a fix strategy
 3. Agent delegate: escalate to a stronger CLI agent (spec 08) with full failure history in the brief
