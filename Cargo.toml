@@ -47,3 +47,5 @@ sha2 = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 # Local dashboard (spec 12) — loopback only, no build step.
 axum = "0.7"
+# async fns in traits (council adapters, spec 05 C1)
+async-trait = "0.1"

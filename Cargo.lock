@@ -953,7 +953,18 @@ dependencies = [
 name = "localai-council"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "chrono",
  "localai-core",
+ "localai-migration",
+ "localai-security",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
