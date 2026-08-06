@@ -39,6 +39,12 @@ route ∈ {
 | `est_cost` | token/$ estimate per route | budget awareness (CON-11) |
 | `freshness_need` | query asks for recent/changing info? | forces SEARCH regardless of KB |
 
+- **R2b — Effort dial: the router picks a *reasoning budget*, not just a route** (Raschka, "Controlling Reasoning Effort in LLMs"). Route answers *where* to think; effort answers *how long*. On CPU at ~6 tok/s reasoning tokens dominate wall-clock (RV-03), so a trivial query burning a long chain-of-thought is pure latency waste.
+  - `effort ∈ {low, medium, high}` → a max-thinking-token budget (config per level), enforced by the generation call (spec 03 I8 sampling params + I14 timeout).
+  - Derived from features we already compute — no new signals: `stakes_class` (irreversible/security → never `low`), `task_class` (math/code lean higher; factual-lookup leans lower), `kb_score` (strong KB hit → less reasoning needed, the answer is retrieval not deduction), `self_consistency` (unstable → raise effort).
+  - Effort is a **bandit arm dimension**, not a fixed rule: `(route, effort)` is the action, so the learner discovers where cheap thinking suffices. Cost/latency already sit in the reward (§4 w3/w4), so over-thinking is penalized automatically.
+  - Floor: hard-override routes (R3) carry a minimum effort — never answer a security/irreversible question in `low`.
+
 - **R3** — Hard overrides (bandit cannot veto these):
   - `stakes_class ∈ {irreversible, security}` → minimum route `COUNCIL_DECIDE` (never silent-local on high stakes).
   - `provenance_mix > 0` AND route would use a Privileged tool → blocked (defers to spec `07` H4).

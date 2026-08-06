@@ -119,3 +119,18 @@ Watch buckets (skimmed by title/abstract — revisit at the phase noted):
 Rejected — wrong layer (vision / attention-architecture / pretraining-scales / kernel-opt, all below ADR-004's line): Chimera, ReToken (vision); MHAR, LongCat, SparDA (attention arch); SOAP-Muon, Small-LLMs-Pruning, Requential-Coding, Explorative-Modeling (pretraining); Kernel Forge, JAXBench (kernel/TPU); Molt, Native-training-frameworks (GPU RL infra); plus interp/eval-only papers (Verbalizable Representations, Not-All-Reasoning-Visible, Structured-Output-Collapses, Frontier-Models-Struggle-to-Copy). None touch our CPU/orchestration/memory layer.
 
 **docx guides** (4-Layer Memory, Subagent Layer Fix, YC Agent Harness) — operator's own notes; cross-reference against spec 02 (memory tiers) + spec 08 (agents) when those phases build; not auto-adopted (unverified provenance, may contain project-specific context).
+
+## Batch: Kimi K3 / effort-control / assorted blogs (2026-08)
+
+| Item | Verdict | Decide-by |
+|---|---|---|
+| **Kimi K3 / Kimi Delta Attention** (kimi.com/blog/kimi-k3) | WATCH — mechanism matters, model does not. Verified: 2.8T MoE (16-of-896 experts active), 1M context; **KDA in 3-of-4 layers keeps a CONSTANT-size recurrent state** (delta rule: each write overwrites toward the new value rather than accumulating), only 1-in-4 layers hold a compressed MLA latent KV → KV footprint at long context is a fraction of full attention. 2.8T is memory-impossible for us at 32 GB AND at 128 GB DGX — model rejected. **Trigger to re-open:** if a ≤12B KDA-architecture model ships WITH llama.cpp support, our 32K context cap (CON-6) and the KV half of the RV-03 latency budget become re-negotiable. Also confirms the attention-residuals lineage → reinforces the MHAR rejection (frontier-scale architecture, below our layer). | each ADR-003 phase boundary |
+| **Controlling Reasoning Effort** (Raschka) | ADOPTED → spec 06 R2b. Low/med/high effort = a max-thinking-token budget; router now picks `(route, effort)` as the bandit action, derived from existing features. Direct CPU latency lever (RV-03): reasoning tokens dominate wall-clock at 6 tok/s. Related: BudgetThinker (control tokens) if we ever want in-generation budget signalling — not needed while we cap via sampling params. | adopted |
+| OpenAI "Practical Guide to Building AI Agents" | Vendor guide — spec 07/08 already exceed its scope (no provenance gate, no tool-lockout, no reward loop in it). Skim-only. | — |
+| Turingpost latent reasoning | Survey, interp-adjacent; same layer as the already-rejected "reasoning not visible in CoT" paper. | — |
+| Prime Intellect prime-agent | Product blog — re-check whether it's a real OSS agent runtime when fetch budget resets. | unresolved |
+| decodingai "unified memory from scratch" / slite self-maintaining-KB / datasciencedojo LLM-wiki tutorial | Tutorials & product marketing describing shapes we already spec (4-tier memory, M11d supersede, wiki tab). Cross-reference material for UI polish; not adopted. | — |
+| awesome-kan (KAN networks) | REJECT — model-architecture research, below ADR-004's line (we don't design networks). | — |
+| Meta Brain2Qwerty | REJECT — BCI research, zero overlap with this system. | — |
+
+**Intake note (honest):** the last several review batches have run ~90% reject-or-validate, ~10% actionable, and the actionable items are shrinking to refinements. The specs are dense enough that new inputs mostly confirm them. Recommend shifting effort from link-intake to building the remaining subsystems (council, retrieval, router) — the design risk is now lower than the implementation gap.
