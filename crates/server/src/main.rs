@@ -13,8 +13,10 @@ use chrono::Utc;
 use localai_core::config::Config;
 use localai_server::process_runner::ProcessRunner;
 use localai_server::queue::JobQueue;
+use localai_server::secrets::SecretStore;
 use localai_server::startup::boot;
 use localai_server::supervisor::{JobRunner, Supervisor};
+use localai_server::ui::{self, UiStatus};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,6 +42,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
+
+    // Load operator API keys from the local secret store into the process env
+    // BEFORE config load, so an explicit shell env var still wins (CON-9).
+    let secrets = std::sync::Arc::new(SecretStore::new(secrets_dir()));
+    match secrets.load_into_env() {
+        Ok(n) => tracing::info!(keys = n, "loaded API keys from secret store"),
+        Err(e) => tracing::warn!(error = %e, "secret store load skipped"),
+    }
 
     // Config: config.toml (if present) < LOCALAI_* env (spec 01 §6).
     let toml_str = std::fs::read_to_string("config.toml").unwrap_or_default();
@@ -90,7 +100,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let supervisor = Supervisor::new(brain.pool.clone(), queue, runner, &config.queue);
     let lease_secs = config.queue.lease_secs as i64;
 
+    // Local dashboard (spec 12) — loopback only. Seed status once; live
+    // MemoryGuard→UiStatus refresh is a follow-on (status starts static).
+    let ui_status = std::sync::Arc::new(tokio::sync::Mutex::new(UiStatus {
+        ram_gb: 0.0,
+        ram_ceiling_gb: config.mem.ceiling_gb,
+        queue_depth: 0,
+        inference_up: brain.inference.is_some(),
+        degraded_banner: brain
+            .inference
+            .is_none()
+            .then(|| "model-down (no model_path) — H12".to_string()),
+    }));
+    let ui_router = ui::router(brain.pool.clone(), secrets.clone(), ui_status);
+    let ui_port: u16 = 4321; // spec 12 U1 default
+    let ui_task = tokio::spawn(async move {
+        if let Err(e) = ui::serve(ui_router, ui_port).await {
+            tracing::error!(error = %e, "dashboard server exited");
+        }
+    });
+    tracing::info!(url = %format!("http://127.0.0.1:{ui_port}"), "dashboard up");
+
     run_until_signal(&supervisor, lease_secs).await;
+    ui_task.abort();
 
     tracing::info!("shutdown signal received — flushing and exiting");
     brain.shutdown().await;
@@ -165,4 +197,14 @@ fn data_dir(config: &Config) -> PathBuf {
         .parent()
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// Secret store location: `$HOME/.localai` (outside the repo, gitignored by
+/// location — CON-13 softened for the single-user config UI). Falls back to
+/// `./.localai` if HOME is unset.
+fn secrets_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".localai")
 }

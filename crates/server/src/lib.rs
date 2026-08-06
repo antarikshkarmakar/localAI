@@ -5,5 +5,7 @@ pub mod heartbeat;
 pub mod paths;
 pub mod process_runner;
 pub mod queue;
+pub mod secrets;
 pub mod startup;
 pub mod supervisor;
+pub mod ui;
