@@ -17,10 +17,16 @@ use std::str::FromStr;
 use std::time::Duration;
 
 /// Ordered migration list. Append-only — never reorder or edit an applied one.
-const MIGRATIONS: &[(&str, &str)] = &[(
-    "20260708_001_init_schema",
-    include_str!("../migrations/20260708_001_init_schema.sql"),
-)];
+const MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "20260708_001_init_schema",
+        include_str!("../migrations/20260708_001_init_schema.sql"),
+    ),
+    (
+        "20260806_002_decisions",
+        include_str!("../migrations/20260806_002_decisions.sql"),
+    ),
+];
 
 /// Single-writer default (spec 01 R1). SQLite serializes writers anyway;
 /// one connection makes the discipline explicit and sidesteps WAL writer
@@ -117,6 +123,9 @@ mod tests {
             "config",
             "secret_audit",
             "schema_migrations",
+            // migration 002 (spec 05 §6)
+            "decisions",
+            "council_spend",
         ] {
             assert!(
                 tables.contains(&expected.to_string()),
