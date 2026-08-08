@@ -53,6 +53,23 @@ pub struct Config {
     pub inference: InferenceCfg,
     pub queue: QueueCfg,
     pub ledger: LedgerCfg,
+    pub research: ResearchCfg,
+}
+
+/// Scheduled research digest (spec 13 D7b, spec 04 O15b).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, default)]
+pub struct ResearchCfg {
+    /// arXiv categories to pull daily, comma-separated.
+    pub arxiv_categories: String,
+}
+
+impl Default for ResearchCfg {
+    fn default() -> Self {
+        Self {
+            arxiv_categories: "cs.AI,cs.LG,cs.CL".to_string(),
+        }
+    }
 }
 
 /// MemoryGuard watermarks (spec 01 §4, CON-1).
@@ -165,7 +182,7 @@ impl Default for LedgerCfg {
     }
 }
 
-const SECTIONS: &[&str] = &["mem", "paths", "inference", "queue", "ledger"];
+const SECTIONS: &[&str] = &["mem", "paths", "inference", "queue", "ledger", "research"];
 
 impl Config {
     /// Load from a TOML string plus env-var pairs. Pure — no I/O.

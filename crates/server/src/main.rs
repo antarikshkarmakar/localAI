@@ -13,6 +13,7 @@ use chrono::Utc;
 use localai_core::config::Config;
 use localai_server::process_runner::ProcessRunner;
 use localai_server::queue::JobQueue;
+use localai_server::scheduler::{default_jobs, Scheduler};
 use localai_server::secrets::SecretStore;
 use localai_server::startup::boot;
 use localai_server::supervisor::{JobRunner, Supervisor};
@@ -121,8 +122,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     tracing::info!(url = %format!("http://127.0.0.1:{ui_port}"), "dashboard up");
 
+    // Recurring work (spec 04 O15/O15b) — this is what makes the Brain
+    // self-directed rather than waiting for the operator to enqueue.
+    // Ticking hourly is plenty: the dedup key is period-bucketed, so extra
+    // ticks are no-ops and a missed hour still fires later the same day.
+    let scheduler = Scheduler::new(
+        brain.pool.clone(),
+        default_jobs(&config.research.arxiv_categories),
+    );
+    let sched_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(3600));
+        loop {
+            tick.tick().await;
+            match scheduler.tick(&Utc::now().to_rfc3339()).await {
+                Ok(r) if !r.enqueued.is_empty() => {
+                    tracing::info!(jobs = ?r.enqueued, "scheduler enqueued recurring work")
+                }
+                Ok(_) => {}
+                Err(e) => tracing::error!(error = %e, "scheduler tick failed"),
+            }
+        }
+    });
+
     run_until_signal(&supervisor, lease_secs).await;
     ui_task.abort();
+    sched_task.abort();
 
     tracing::info!("shutdown signal received — flushing and exiting");
     brain.shutdown().await;
