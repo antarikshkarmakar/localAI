@@ -62,12 +62,18 @@ pub struct Config {
 pub struct ResearchCfg {
     /// arXiv categories to pull daily, comma-separated.
     pub arxiv_categories: String,
+    /// Digest sources, comma-separated. `arxiv` = the papers themselves;
+    /// `alphaxiv` = the same paper universe (mirrors arXiv ids) plus community
+    /// discussion, used as a RELEVANCE signal for gap-directed curation, not
+    /// as a second copy of the paper (spec 13 D7b/D7c).
+    pub sources: String,
 }
 
 impl Default for ResearchCfg {
     fn default() -> Self {
         Self {
             arxiv_categories: "cs.AI,cs.LG,cs.CL".to_string(),
+            sources: "arxiv,alphaxiv".to_string(),
         }
     }
 }

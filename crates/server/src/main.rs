@@ -128,7 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ticks are no-ops and a missed hour still fires later the same day.
     let scheduler = Scheduler::new(
         brain.pool.clone(),
-        default_jobs(&config.research.arxiv_categories),
+        default_jobs(&config.research.arxiv_categories, &config.research.sources),
     );
     let sched_task = tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(3600));
