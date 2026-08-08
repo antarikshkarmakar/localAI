@@ -73,6 +73,10 @@ worker stdout JSON → Brain validates schema
 ## 7. Scheduled / recurring jobs
 
 - **O15** — Cron-like scheduler enqueues maintenance jobs: nightly episode rollup, OKF↔DB reconciliation (spec 09), WAL checkpoint (G-08), disk-retention sweep (G-19), monthly fact audit (spec 05 mode 4). Scheduled jobs are normal `jobs` rows (durable, survive restart) with a `next_run` in payload.
+- **O15b — Scheduled jobs create work, and the work is trackable.** The scheduler is what makes the Brain *self-directed* rather than purely reactive — without it nothing runs unless the operator enqueues it. Recurring kinds: the research digest (spec 13 D7b), reconciliation, WAL checkpoint, retention sweep, fact audit.
+  - A digest run that surfaces something relevant **enqueues a normal `jobs` row** — which is exactly what the Kanban board renders (spec 12), so agent-created and human-created tasks share one queue and one view. The payload carries `{description, plan, skills, refs}` like any user-added task.
+  - Outcomes are tracked where learning already lives: verified findings → OKF (spec 02), process lessons → `procedural_obs` (spec 10 L9), operator judgments → `preferences` (spec 02 §5.1). "What did we learn from today's reading" is a query over those, not a new store.
+  - Scheduling state is durable (`jobs` rows with `next_run`), so a restart never silently stops the loop — a scheduler whose state lives in memory is a scheduler that quietly dies (R15 posture).
 - **O16 — The rollup job = `/ak-compact` ported (antarikshSkills A4, [prior-art](../docs/prior-art-integration.md)).** The nightly consolidation runs this proven 8-step checklist, in order:
   1. **Consolidate** the day's events → `kb/daily/YYYY-MM-DD.md` (done / decided / open loops / tomorrow's first task) + a `daily` episode (spec 02 M6).
   2. **Update project cards** (`kb/projects/<name>.md`) with verified new decisions/facts — note reversals, never delete old ones.

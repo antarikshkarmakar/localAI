@@ -26,6 +26,10 @@ Runs as three job kinds (spec 04): `scrape`, `ingest` (clean+chunk+embed), `dist
 ## 3. Fetch mechanisms
 
 - **D7 — Tiered fetch:** static HTML → `reqwest` + `scraper` crate (cheap). JS-rendered → headless browser (heavier, gated behind a flag + its own resource cap; optional Docker-isolated per PLAN hybrid). Prefer the cheapest that gets clean content.
+- **D7b — Scheduled research digest (arXiv daily, gap-directed):** a recurring `scrape` source that pulls the day's papers for configured categories (e.g. `cs.AI`, `cs.LG`, `cs.CL`) and feeds the normal pipeline — scrape → ingest → distill → council fact-check. Two rules keep it from becoming a junk drawer:
+  1. **Gap-directed, not broad (L2b):** the digest is filtered against current calibration-error hotspots and open-questions entries. Reading everything daily is the accumulate-everything failure mode; the point is hunting the model's blind spots.
+  2. **Papers are claims, not truth.** Distilled paper content is `UnverifiedKb` like any scraped source (D6/L1) — a paper asserting a result is a claim to verify, never training data and never auto-`verified`. Promotion still requires the council path (spec 05 C8).
+  Provenance is `Untrusted` end-to-end (arXiv is an external source like any other). Pattern credited to `daily-arXiv-ai-enhanced` (workflow only — that tool is Python/GitHub-Actions/cloud-LLM and bypasses our whole pipeline; we reuse the *loop*, not the code).
 - **D8 — Search integration:** `web_search` tool (spec 07, Network class) returns candidate URLs → scrape jobs enqueued for the promising ones (router SEARCH route, spec 06).
 
 ## 4. Extraction & structural parsing

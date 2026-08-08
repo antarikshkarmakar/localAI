@@ -134,3 +134,10 @@ Rejected — wrong layer (vision / attention-architecture / pretraining-scales /
 | Meta Brain2Qwerty | REJECT — BCI research, zero overlap with this system. | — |
 
 **Intake note (honest):** the last several review batches have run ~90% reject-or-validate, ~10% actionable, and the actionable items are shrinking to refinements. The specs are dense enough that new inputs mostly confirm them. Recommend shifting effort from link-intake to building the remaining subsystems (council, retrieval, router) — the design risk is now lower than the implementation gap.
+
+## Batch: daily-arXiv-ai-enhanced + gitreverse (2026-08)
+
+| Item | Verdict |
+|---|---|
+| **daily-arXiv-ai-enhanced** (dw-dengwei) | **Workflow ADOPTED, tool rejected.** Python + GitHub Actions + cloud LLM → bypasses the entire pipeline we built (allowlist, provenance, council gating). But the *loop* it describes is the missing self-direction: nothing currently generates work for the Brain. Adopted as spec 13 D7b (scheduled gap-directed arXiv digest) + spec 04 O15b (digest enqueues Kanban-visible jobs; outcomes tracked in OKF/procedural_obs/preferences). Every component already existed — scrape/ingest/distill/OkfStore/council/jobs+UI — so this is a scheduler plus one job kind, not a new subsystem. **Caution recorded in the spec:** papers are *claims to verify*, never training data; broad daily reading is the junk-drawer failure (curate against calibration gaps, L2b). |
+| **gitreverse** (filiksyos) | **REJECTED as a tool; idea kept.** Reads repo metadata + one-level file tree + README, then has an LLM write ONE short conversational prompt for Cursor-style "vibe coding". It never reads the actual code — far thinner than "repo → spec". Our equivalent is already deeper: `ak-grok` + tree-sitter AST chunking (spec 13 D9). Adopting it would be a downgrade. **Idea worth keeping:** a `repo_compare` job kind — diff our implementation against a reference repo, extract the delta as improvement candidates feeding the L10f exploration ledger. Built on our own AST tooling, not gitreverse. Decide-by Phase 6 (when prompt/skill evolution goes live). |
