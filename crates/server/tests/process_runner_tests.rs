@@ -37,6 +37,11 @@ exit 0
     let mut file = fs::File::create(&script_path).expect("create script");
     file.write_all(script_content.as_bytes())
         .expect("write script");
+    // Flush to disk BEFORE the handle closes and before exec. Without this the
+    // suite is flaky under parallel load: the script can be exec'd while the
+    // write is still in flight, the fake worker emits nothing, and the parse
+    // falls through to Failed/Bug instead of the status under test.
+    file.sync_all().expect("sync script to disk");
     drop(file);
 
     #[cfg(unix)]
@@ -65,6 +70,11 @@ exit 0
     let mut file = fs::File::create(&script_path).expect("create script");
     file.write_all(script_content.as_bytes())
         .expect("write script");
+    // Flush to disk BEFORE the handle closes and before exec. Without this the
+    // suite is flaky under parallel load: the script can be exec'd while the
+    // write is still in flight, the fake worker emits nothing, and the parse
+    // falls through to Failed/Bug instead of the status under test.
+    file.sync_all().expect("sync script to disk");
     drop(file);
 
     #[cfg(unix)]
