@@ -13,6 +13,7 @@
 
 pub mod distill;
 pub mod ingest;
+pub mod research;
 pub mod scrape;
 
 use localai_core::{ErrorClass, Provenance};

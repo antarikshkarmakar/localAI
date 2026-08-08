@@ -74,7 +74,7 @@ pub struct ScheduledJob {
 /// alphaXiv the community-engagement signal over the SAME paper ids — the
 /// worker dedups by arXiv id so a paper present in both is fetched once
 /// (spec 13 D7c).
-pub fn default_jobs(arxiv_categories: &str, sources: &str) -> Vec<ScheduledJob> {
+pub fn default_jobs(arxiv_categories: &str, sources: &str, allowlist: &str) -> Vec<ScheduledJob> {
     vec![
         ScheduledJob {
             name: "research_digest",
@@ -82,7 +82,7 @@ pub fn default_jobs(arxiv_categories: &str, sources: &str) -> Vec<ScheduledJob> 
             cadence: Cadence::Daily,
             priority: 7,
             payload: format!(
-                r#"{{"sources":"{sources}","categories":"{arxiv_categories}","gap_directed":true,"dedup_by":"arxiv_id"}}"#
+                r#"{{"sources":"{sources}","categories":"{arxiv_categories}","allowlist":"{allowlist}","gap_directed":true,"dedup_by":"arxiv_id"}}"#
             ),
         },
         ScheduledJob {
@@ -229,7 +229,10 @@ mod tests {
     #[tokio::test]
     async fn tick_enqueues_the_default_set() {
         let pool = db().await;
-        let s = Scheduler::new(pool.clone(), default_jobs("cs.AI,cs.LG", "arxiv,alphaxiv"));
+        let s = Scheduler::new(
+            pool.clone(),
+            default_jobs("cs.AI,cs.LG", "arxiv,alphaxiv", "arxiv.org"),
+        );
         let r = s.tick("2026-08-06T02:00:00Z").await.unwrap();
 
         // 5 daily + 1 monthly all fire on a cold start.

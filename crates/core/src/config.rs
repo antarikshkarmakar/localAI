@@ -67,6 +67,10 @@ pub struct ResearchCfg {
     /// discussion, used as a RELEVANCE signal for gap-directed curation, not
     /// as a second copy of the paper (spec 13 D7b/D7c).
     pub sources: String,
+    /// Hosts the digest may fetch (spec 13 D1), comma-separated. Neither arXiv
+    /// nor alphaXiv is implicitly trusted for being academic — both are listed
+    /// explicitly, like any other external source.
+    pub allowlist: String,
 }
 
 impl Default for ResearchCfg {
@@ -74,6 +78,7 @@ impl Default for ResearchCfg {
         Self {
             arxiv_categories: "cs.AI,cs.LG,cs.CL".to_string(),
             sources: "arxiv,alphaxiv".to_string(),
+            allowlist: "arxiv.org,export.arxiv.org,alphaxiv.org".to_string(),
         }
     }
 }

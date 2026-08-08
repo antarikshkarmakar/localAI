@@ -10,7 +10,8 @@
 //! "not implemented" errors.
 
 use localai_worker::{
-    distill, ingest, run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload, WorkerResult,
+    distill, ingest, research, run_worker, scrape, WorkerError, WorkerExecError, WorkerPayload,
+    WorkerResult,
 };
 use std::io::{self, Read};
 use std::time::Duration;
@@ -155,9 +156,16 @@ fn get_handler(kind: &str) -> fn(WorkerPayload) -> Result<serde_json::Value, Wor
     }
 }
 
-/// Phase 2: real scrape handler (spec 13 D1-D6).
+/// Phase 2/3: scrape handler. A payload carrying `sources` is a research
+/// digest (spec 13 D7b/D7c) — enumerate papers; anything else is a plain
+/// URL fetch (D1-D6). Both go through the SAME Fetcher, so allowlist,
+/// robots, size caps and ban detection apply either way.
 fn handle_scrape(payload: WorkerPayload) -> Result<serde_json::Value, WorkerExecError> {
-    scrape::handle(payload, &RealFetcher::new())
+    if payload.args.get("sources").is_some() {
+        research::handle(payload, &RealFetcher::new())
+    } else {
+        scrape::handle(payload, &RealFetcher::new())
+    }
 }
 
 /// Phase 2: real ingest handler (spec 13 D11, D14; spec 02 M10).
