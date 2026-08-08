@@ -160,3 +160,17 @@ Loop-4 / training cluster (all DGX-era, none actionable pre-hardware): **AgentOp
 Rejected — below ADR-004's line (model internals / optimization theory / domain models): **Hierarchical Latent Prediction** (2608.05806), **The Loss Does Not See the Basis but Adam Does** (2608.05136), **There Will Be a Scientific Theory of Deep Learning** (2604.21691), **Leanstral** (Lean-4 theorem-proving code agent, 119B MoE — wrong domain and memory-impossible). **Model or Harness?** (2607.28802) was already triaged in the previous corpus sweep.
 
 **k-a.in/KDA** — same Kimi Delta Attention already recorded; unchanged (constant-size recurrent state is the interesting half; 2.8T model impossible at 32 GB and at 128 GB DGX).
+
+### Gap-check pass over C:\GitHub\papers (90 PDFs)
+
+Diffed every arXiv id in the folder against this register; 5 were untriaged (one was a false gap — On-Policy Self-Distillation 2608.06296 had been read and filed by filename, not id).
+
+| Paper | Verdict |
+|---|---|
+| **Memory for Autonomous LLM Agents: Mechanisms, Evaluation, Emerging Frontiers** (2603.07670) | ★★ **survey — found a real gap** → spec 02 M11i. Frames memory as `write → manage → read` and identifies the **write path** as where deployed systems fail: everything gets stored, the store degrades, recall precision drops. We had an explicit read path (M11) and manage path (M7/M11c/M6b) but no write filter — "distill produces it, we store it". Now specced: refuse duplicates (same subject+predicate already asserted), sub-floor confidence, and unfalsifiable claims with no resolvable citation. Cheaper to refuse at write than prune later; directly serves `duplicate_memory_rate` (spec 14). Its five mechanism families (context compression, retrieval stores, reflective self-improvement, hierarchical virtual context, policy-learned management) map onto our four tiers with no family missing — useful independent confirmation the tier split isn't idiosyncratic. |
+| **LongStraw: Long-Context RL Beyond 2M Tokens under a Fixed GPU Budget** (2607.14952) | ★ **Phase-9 watch, constraint-shaped for us.** GRPO post-training where "the binding limit is the lifetime of state and gradients, not attention cost" — resident-state virtualization + one-response-at-a-time replay to bound the live graph. That is precisely the DGX situation: one box, fixed memory, no cluster. If the Phase-9 bake-off picks a GRPO-family method (ART/GiGPO), this is the memory-schedule reference. Not actionable pre-hardware. |
+| **DataSpace** (2608.03451) | Benchmark for data agents over heterogeneous workspaces — evaluation harness, not a mechanism. Possible future eval source if the Brain ever does analytics tasks; nothing to adopt. |
+| **Video Generation Models are General-Purpose Vision Learners** (2607.09024) | REJECT — vision/video, below ADR-004's line. |
+| On-Policy Self-Distillation (2608.06296) | Already triaged in the 15-paper batch (Loop-4 cluster); listing it here only because the id-diff flagged it. |
+
+**Register hygiene note:** triage is now tracked by arXiv id, so a future `papers/` diff is a one-command gap check rather than a re-read.
